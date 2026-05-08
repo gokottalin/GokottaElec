@@ -13,7 +13,7 @@ namespace CircuitLangLauncher
     internal static class Program
     {
         private const string AppName = "GokottaElec";
-        private const string AppVersion = "V1.0";
+        private const string AppVersion = "V1.1";
         private static string _lastFinalOutputDir = "";
         private static string _lastLiveText = "";
         private static int _renderSerial = 0;
@@ -35,6 +35,17 @@ namespace CircuitLangLauncher
             public int ExitCode;
             public string Log;
             public string OutputDir;
+        }
+
+        private sealed class SampleItem
+        {
+            public string Title;
+            public string Path;
+
+            public override string ToString()
+            {
+                return Title;
+            }
         }
 
         [STAThread]
@@ -109,14 +120,32 @@ namespace CircuitLangLauncher
             leftLayout.ColumnCount = 1;
             leftLayout.RowCount = 2;
             leftLayout.Padding = new Padding(0, 8, 8, 0);
-            leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+            leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
             leftLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            TableLayoutPanel inputBar = new TableLayoutPanel();
+            inputBar.Dock = DockStyle.Fill;
+            inputBar.ColumnCount = 3;
+            inputBar.RowCount = 1;
+            inputBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+            inputBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            inputBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
 
             Label inputLabel = new Label();
             inputLabel.Text = "LLM 输出 / CNL 输入";
             inputLabel.Dock = DockStyle.Fill;
+            inputLabel.TextAlign = ContentAlignment.MiddleLeft;
             inputLabel.Font = new Font("Segoe UI", 10, FontStyle.Bold);
             inputLabel.ForeColor = Color.FromArgb(38, 48, 58);
+
+            ComboBox sampleCombo = new ComboBox();
+            sampleCombo.Dock = DockStyle.Fill;
+            sampleCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+            sampleCombo.Font = new Font("Segoe UI", 9);
+
+            Button loadSampleButton = BuildButton("载入");
+            loadSampleButton.Dock = DockStyle.Fill;
+            loadSampleButton.Width = 84;
 
             TextBox inputBox = new TextBox();
             inputBox.Multiline = true;
@@ -128,7 +157,11 @@ namespace CircuitLangLauncher
             inputBox.Dock = DockStyle.Fill;
             inputBox.BorderStyle = BorderStyle.FixedSingle;
 
-            leftLayout.Controls.Add(inputLabel, 0, 0);
+            inputBar.Controls.Add(inputLabel, 0, 0);
+            inputBar.Controls.Add(sampleCombo, 1, 0);
+            inputBar.Controls.Add(loadSampleButton, 2, 0);
+
+            leftLayout.Controls.Add(inputBar, 0, 0);
             leftLayout.Controls.Add(inputBox, 0, 1);
             split.Panel1.Controls.Add(leftLayout);
 
@@ -243,14 +276,12 @@ namespace CircuitLangLauncher
             Button renderNowButton = BuildButton("立即渲染");
             Button generateButton = BuildButton("生成文件");
             Button loadButton = BuildButton("加载文件");
-            Button sampleButton = BuildButton("加载示例");
             Button openButton = BuildButton("打开输出");
 
             buttons.Controls.Add(liveBox);
             buttons.Controls.Add(renderNowButton);
             buttons.Controls.Add(generateButton);
             buttons.Controls.Add(loadButton);
-            buttons.Controls.Add(sampleButton);
             buttons.Controls.Add(openButton);
 
             footer.Controls.Add(outputLabel, 0, 0);
@@ -262,6 +293,7 @@ namespace CircuitLangLauncher
             root.Controls.Add(split, 0, 1);
             root.Controls.Add(footer, 0, 2);
             form.Controls.Add(root);
+            LoadSampleItems(repoRoot, sampleCombo);
 
             form.Shown += delegate
             {
@@ -337,6 +369,16 @@ namespace CircuitLangLauncher
                 }
             };
 
+            loadSampleButton.Click += delegate
+            {
+                LoadSelectedSample(sampleCombo, inputBox, outputBox, repoRoot);
+            };
+
+            sampleCombo.SelectedIndexChanged += delegate
+            {
+                if (sampleCombo.Focused) LoadSelectedSample(sampleCombo, inputBox, outputBox, repoRoot);
+            };
+
             browseButton.Click += delegate
             {
                 FolderBrowserDialog dialog = new FolderBrowserDialog();
@@ -363,26 +405,6 @@ namespace CircuitLangLauncher
                 else
                 {
                     MessageBox.Show("输出目录还不存在。", AppName);
-                }
-            };
-
-            sampleButton.Click += delegate
-            {
-                string sample = Path.Combine(repoRoot, "samples", "Sample-01-voltage-divider.txt");
-                if (File.Exists(sample))
-                {
-                    inputBox.Text = File.ReadAllText(sample, Encoding.UTF8);
-                }
-                else
-                {
-                    inputBox.Text =
-                        "\u7535\u8def SAMPLE_001 \u7248\u672c 0.1.0\u3002\r\n\r\n" +
-                        "\u7f51\u7edc GND \u662f ground\uff0c\u8bf4\u660e=\u5168\u5c40\u53c2\u8003\u5730\u3002\r\n" +
-                        "\u7f51\u7edc VCC \u662f power\uff0c\u8bf4\u660e=5V\u7535\u6e90\u3002\r\n\r\n" +
-                        "\u5668\u4ef6 V1 \u662f VOLTAGE_SOURCE_DC\uff0c\u53c2\u6570{voltage=5V}\u3002\r\n" +
-                        "\u5668\u4ef6 R1 \u662f RESISTOR\uff0c\u53c2\u6570{resistance=1k\u03a9}\u3002\r\n\r\n" +
-                        "\u8fde\u63a5 VCC: V1.POS, R1.A\u3002\r\n" +
-                        "\u8fde\u63a5 GND: V1.NEG, R1.B\u3002\r\n";
                 }
             };
 
@@ -436,6 +458,59 @@ namespace CircuitLangLauncher
             button.Margin = new Padding(4, 0, 0, 0);
             button.Font = new Font("Segoe UI", 9);
             return button;
+        }
+
+        private static void LoadSampleItems(string repoRoot, ComboBox sampleCombo)
+        {
+            sampleCombo.Items.Clear();
+            string samplesDir = Path.Combine(repoRoot, "samples");
+            if (!Directory.Exists(samplesDir))
+            {
+                sampleCombo.Enabled = false;
+                return;
+            }
+
+            string[] files = Directory.GetFiles(samplesDir, "Sample-*.txt");
+            Array.Sort(files, StringComparer.OrdinalIgnoreCase);
+            foreach (string file in files)
+            {
+                SampleItem item = new SampleItem();
+                item.Title = SampleTitle(file);
+                item.Path = file;
+                sampleCombo.Items.Add(item);
+            }
+
+            sampleCombo.Enabled = sampleCombo.Items.Count > 0;
+            if (sampleCombo.Items.Count > 0) sampleCombo.SelectedIndex = 0;
+        }
+
+        private static string SampleTitle(string file)
+        {
+            string name = Path.GetFileNameWithoutExtension(file);
+            if (name.IndexOf("voltage-divider", StringComparison.OrdinalIgnoreCase) >= 0) return "01 电阻分压";
+            if (name.IndexOf("npn-low-side-switch", StringComparison.OrdinalIgnoreCase) >= 0) return "02 NPN 低边 LED 开关";
+            if (name.IndexOf("pnp-high-side-switch", StringComparison.OrdinalIgnoreCase) >= 0) return "03 PNP 高边 LED 开关";
+            if (name.IndexOf("cmos-inverter", StringComparison.OrdinalIgnoreCase) >= 0) return "04 NMOS + PMOS CMOS 反相器";
+            if (name.IndexOf("opamp-noninverting", StringComparison.OrdinalIgnoreCase) >= 0) return "05 运放同相放大器";
+            return name;
+        }
+
+        private static void LoadSelectedSample(ComboBox sampleCombo, TextBox inputBox, TextBox outputBox, string repoRoot)
+        {
+            SampleItem item = sampleCombo.SelectedItem as SampleItem;
+            if (item == null)
+            {
+                MessageBox.Show("没有可载入的 Sample。请确认 samples 目录存在。", AppName);
+                return;
+            }
+            if (!File.Exists(item.Path))
+            {
+                MessageBox.Show("Sample 文件不存在：\r\n" + item.Path, AppName);
+                return;
+            }
+
+            inputBox.Text = File.ReadAllText(item.Path, Encoding.UTF8);
+            outputBox.Text = Path.Combine(repoRoot, "output", Path.GetFileNameWithoutExtension(item.Path));
         }
 
         private static void ApplySafeSplitterDistance(SplitContainer split, double ratio)
@@ -649,7 +724,7 @@ namespace CircuitLangLauncher
             previewBrowser.DocumentText =
                 "<!doctype html><html><head><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" /></head>" +
                 "<body style=\"font-family:Segoe UI,Arial,sans-serif;margin:28px;color:#333;background:#f8fafb\">" +
-                "<div style=\"font-size:22px;font-weight:700;margin-bottom:8px;color:#1c2933\">GokottaElec V1.0 预览</div>" +
+                "<div style=\"font-size:22px;font-weight:700;margin-bottom:8px;color:#1c2933\">GokottaElec V1.1 预览</div>" +
                 "<div style=\"font-size:13px;line-height:1.5;color:#52616c\">" + HtmlEscape(message) + "</div>" +
                 "</body></html>";
         }

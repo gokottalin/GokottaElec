@@ -2,7 +2,7 @@
 
 本文档给 `GokottaMaker` 网站项目使用。目标不是一次做完整网页版，而是先做一个可嵌入网站的小程序入口，预留后续完整云端渲染接口。
 
-当前 GokottaElec 版本：`V1.0`
+当前 GokottaElec 版本：`V1.1`
 
 目标 GitHub 仓库：
 

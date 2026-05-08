@@ -2,7 +2,7 @@
 
 GokottaElec 用于把受控自然语言电路描述转换为脚本生成的电路原理图，并保留给其他 LLM 对接的 CNL 输出契约。
 
-当前版本：`V1.0`
+当前版本：`V1.1`
 
 GitHub 目标仓库：
 
@@ -34,6 +34,8 @@ https://github.com/gokottalin/GokottaElec.git
 ```powershell
 dist\GokottaElec.exe
 ```
+
+软件左侧输入栏上方有 Sample 下拉框，可直接载入 5 个内置示例。
 
 命令行处理 `.txt` 或 `.cnl`：
 
@@ -91,6 +93,6 @@ POST /api/elec/build
 
 ## 版本规则
 
-- 当前版本为 `V1.0`。
+- 当前版本为 `V1.1`。
 - 普通更新增加 `0.1`，例如 `V1.0 -> V1.1`。
 - 重大更新增加 `1.0`，例如 `V1.0 -> V2.0`。
