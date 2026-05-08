@@ -1,0 +1,19 @@
+# Runtime/generated output
+output/*
+!output/.gitkeep
+
+# Packaged artifacts
+dist/
+release/
+
+# .NET build artifacts
+launcher/bin/
+launcher/obj/
+
+# Node/editor/system
+node_modules/
+.vscode/
+.vs/
+*.log
+.DS_Store
+Thumbs.db
