@@ -2,7 +2,7 @@
 
 本文档给 `GokottaMaker` 网页开发团队使用，目标是把 `GokottaElec` 作为一个网页小工具接入网站。当前不要求一次性做完整云端 EDA，只需要实现 Sample 加载、CNL 提交、SVG 预览、IR/ ERC 诊断展示这条最小链路。
 
-当前 GokottaElec 版本：`V1.2`
+当前 GokottaElec 版本：`V1.3`
 
 项目仓库：
 
@@ -108,7 +108,7 @@ GET /api/elec/samples
 ```json
 {
   "ok": true,
-  "version": "V1.2",
+  "version": "V1.3",
   "samples": [
     {
       "id": "sample-01-voltage-divider",
@@ -151,7 +151,7 @@ Content-Type: application/json
 ```json
 {
   "ok": true,
-  "version": "V1.2",
+  "version": "V1.3",
   "circuits": [
     {
       "id": "WEB_SAMPLE_01",
@@ -176,7 +176,7 @@ Content-Type: application/json
 ```json
 {
   "ok": false,
-  "version": "V1.2",
+  "version": "V1.3",
   "circuits": [],
   "artifacts": {},
   "diagnostics": [

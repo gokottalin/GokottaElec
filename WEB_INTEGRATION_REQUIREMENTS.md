@@ -2,7 +2,7 @@
 
 本文档定义 `GokottaMaker` 网站接入 `GokottaElec` 的最小接口契约。更面向网页团队的总览交付文档见 `WEB_TEAM_HANDOFF.md`。
 
-当前 GokottaElec 版本：`V1.2`
+当前 GokottaElec 版本：`V1.3`
 
 目标 GitHub 仓库：
 
@@ -63,7 +63,7 @@ web-miniapp/assets/gokotta-elec-icon.png
 ```json
 {
   "ok": true,
-  "version": "V1.2",
+  "version": "V1.3",
   "samples": [
     {
       "id": "sample-01-voltage-divider",
@@ -79,7 +79,7 @@ web-miniapp/assets/gokotta-elec-icon.png
 ```json
 {
   "ok": false,
-  "version": "V1.2",
+  "version": "V1.3",
   "samples": [],
   "diagnostics": [
     {
@@ -114,7 +114,7 @@ web-miniapp/assets/gokotta-elec-icon.png
 ```json
 {
   "ok": true,
-  "version": "V1.2",
+  "version": "V1.3",
   "circuits": [
     {
       "id": "WEB_SAMPLE_01",
@@ -139,7 +139,7 @@ web-miniapp/assets/gokotta-elec-icon.png
 ```json
 {
   "ok": false,
-  "version": "V1.2",
+  "version": "V1.3",
   "circuits": [],
   "artifacts": {},
   "diagnostics": [

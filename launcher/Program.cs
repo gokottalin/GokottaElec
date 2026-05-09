@@ -12,7 +12,7 @@ namespace CircuitLangLauncher
     internal static class Program
     {
         private const string AppName = "GokottaElec";
-        private const string AppVersion = "V1.2";
+        private const string AppVersion = "V1.3";
         private static string _lastFinalOutputDir = "";
         private static string _lastLiveText = "";
         private static int _renderSerial = 0;
@@ -51,6 +51,20 @@ namespace CircuitLangLauncher
             public override string ToString()
             {
                 return Title;
+            }
+        }
+
+        private sealed class HandoffFile
+        {
+            public string RelativePath;
+            public string Title;
+            public string Fence;
+
+            public HandoffFile(string relativePath, string title, string fence)
+            {
+                RelativePath = relativePath;
+                Title = title;
+                Fence = fence;
             }
         }
 
@@ -173,9 +187,10 @@ namespace CircuitLangLauncher
             TableLayoutPanel leftLayout = new TableLayoutPanel();
             leftLayout.Dock = DockStyle.Fill;
             leftLayout.ColumnCount = 1;
-            leftLayout.RowCount = 2;
+            leftLayout.RowCount = 3;
             leftLayout.Padding = new Padding(0, 6, 6, 0);
             leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+            leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
             leftLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             TableLayoutPanel inputBar = new TableLayoutPanel();
@@ -205,6 +220,29 @@ namespace CircuitLangLauncher
             loadSampleButton.Dock = DockStyle.Fill;
             loadSampleButton.Width = 84;
 
+            FlowLayoutPanel handoffBar = new FlowLayoutPanel();
+            handoffBar.Dock = DockStyle.Fill;
+            handoffBar.FlowDirection = FlowDirection.LeftToRight;
+            handoffBar.WrapContents = false;
+            handoffBar.Padding = new Padding(0, 4, 0, 0);
+
+            Label handoffLabel = new Label();
+            handoffLabel.Text = "LLM 对接复制";
+            handoffLabel.Width = 132;
+            handoffLabel.Height = 30;
+            handoffLabel.TextAlign = ContentAlignment.MiddleLeft;
+            handoffLabel.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            handoffLabel.ForeColor = TextBlue;
+
+            Button copyBasicHandoffButton = BuildButton("复制基础LLM");
+            copyBasicHandoffButton.Width = 132;
+            Button copyFullHandoffButton = BuildButton("复制完整LLM");
+            copyFullHandoffButton.Width = 132;
+
+            handoffBar.Controls.Add(handoffLabel);
+            handoffBar.Controls.Add(copyBasicHandoffButton);
+            handoffBar.Controls.Add(copyFullHandoffButton);
+
             TextBox inputBox = new TextBox();
             inputBox.Multiline = true;
             inputBox.ScrollBars = ScrollBars.Both;
@@ -222,7 +260,8 @@ namespace CircuitLangLauncher
             inputBar.Controls.Add(loadSampleButton, 2, 0);
 
             leftLayout.Controls.Add(inputBar, 0, 0);
-            leftLayout.Controls.Add(inputBox, 0, 1);
+            leftLayout.Controls.Add(handoffBar, 0, 1);
+            leftLayout.Controls.Add(inputBox, 0, 2);
             split.Panel1.Controls.Add(leftLayout);
 
             TableLayoutPanel rightLayout = new TableLayoutPanel();
@@ -472,6 +511,16 @@ namespace CircuitLangLauncher
                 }
             };
 
+            copyBasicHandoffButton.Click += delegate
+            {
+                CopyLlmHandoffToClipboard(form, repoRoot, false, statusLabel);
+            };
+
+            copyFullHandoffButton.Click += delegate
+            {
+                CopyLlmHandoffToClipboard(form, repoRoot, true, statusLabel);
+            };
+
             loadSampleButton.Click += delegate
             {
                 LoadSelectedSample(sampleCombo, inputBox, outputBox, repoRoot);
@@ -630,6 +679,115 @@ namespace CircuitLangLauncher
 
             inputBox.Text = File.ReadAllText(item.Path, Encoding.UTF8);
             outputBox.Text = Path.Combine(repoRoot, "output", Path.GetFileNameWithoutExtension(item.Path));
+        }
+
+        private static void CopyLlmHandoffToClipboard(Form form, string repoRoot, bool full, Label statusLabel)
+        {
+            try
+            {
+                string markdown = BuildLlmHandoffMarkdown(repoRoot, full);
+                Clipboard.SetText(markdown, TextDataFormat.UnicodeText);
+                string mode = full ? "完整 LLM 对接 Markdown" : "基础 LLM 对接 Markdown";
+                statusLabel.Text = "已复制：" + mode;
+                MessageBox.Show(form, mode + " 已复制到剪贴板。\r\n\r\n可直接粘贴给其他 LLM。", AppName);
+            }
+            catch (Exception ex)
+            {
+                statusLabel.Text = "LLM 对接复制失败";
+                MessageBox.Show(form, "复制 LLM 对接 Markdown 失败。\r\n\r\n" + ex.Message, AppName);
+            }
+        }
+
+        private static string BuildLlmHandoffMarkdown(string repoRoot, bool full)
+        {
+            StringBuilder markdown = new StringBuilder();
+            string title = full ? "GokottaElec LLM 完整对接包" : "GokottaElec LLM 基础对接包";
+            markdown.AppendLine("# " + title);
+            markdown.AppendLine();
+            markdown.AppendLine("- 软件版本：" + AppVersion);
+            markdown.AppendLine("- 目标：让其他 LLM 严格输出 GokottaElec 可解析、可 ERC 检查、可脚本渲染的受控自然语言电路描述。");
+            markdown.AppendLine("- 使用方式：把本文完整粘贴给目标 LLM，并要求它只按契约输出电路 CNL。");
+            markdown.AppendLine();
+
+            if (full)
+            {
+                markdown.AppendLine("## 总要求");
+                markdown.AppendLine();
+                markdown.AppendLine("请你作为电路设计与 CNL 输出助手，严格遵守下面所有文件定义的格式、器件端子、网络规则、边界条件和示例风格。");
+                markdown.AppendLine("输出时不要自由发挥格式，不要省略网络、器件、连接、约束；无法确定时必须显式给出未连接原因或诊断说明。");
+                markdown.AppendLine();
+            }
+            else
+            {
+                markdown.AppendLine("## 基础要求");
+                markdown.AppendLine();
+                markdown.AppendLine("请你严格遵守系统提示词、CNL 输出契约和输出模板。优先保证格式可解析、端子名准确、网络连接明确。");
+                markdown.AppendLine();
+            }
+
+            HandoffFile[] files = full ? FullHandoffFiles() : BasicHandoffFiles();
+            foreach (HandoffFile file in files)
+            {
+                AppendFileAsMarkdown(markdown, repoRoot, file);
+            }
+
+            return markdown.ToString();
+        }
+
+        private static HandoffFile[] BasicHandoffFiles()
+        {
+            return new HandoffFile[]
+            {
+                new HandoffFile("llm-handoff\\README_先读_给其他LLM的文件说明.md", "文件说明", "markdown"),
+                new HandoffFile("llm-handoff\\01_必需_系统提示词_直接复制给LLM.txt", "必需：系统提示词", "text"),
+                new HandoffFile("llm-handoff\\02_必需_CNL输出契约_必须遵守.md", "必需：CNL 输出契约", "markdown"),
+                new HandoffFile("llm-handoff\\03_可选增强_输出模板_让LLM套用.txt", "推荐：输出模板", "text")
+            };
+        }
+
+        private static HandoffFile[] FullHandoffFiles()
+        {
+            return new HandoffFile[]
+            {
+                new HandoffFile("llm-handoff\\README_先读_给其他LLM的文件说明.md", "文件说明", "markdown"),
+                new HandoffFile("llm-handoff\\01_必需_系统提示词_直接复制给LLM.txt", "必需：系统提示词", "text"),
+                new HandoffFile("llm-handoff\\02_必需_CNL输出契约_必须遵守.md", "必需：CNL 输出契约", "markdown"),
+                new HandoffFile("llm-handoff\\03_可选增强_输出模板_让LLM套用.txt", "推荐：输出模板", "text"),
+                new HandoffFile("llm-handoff\\11_可选增强_完整器件库_端子和边界条件.json", "完整器件库：端子和边界条件", "json"),
+                new HandoffFile("llm-handoff\\12_可选增强_型号封装引脚库_PinMap.json", "型号封装引脚库 PinMap", "json"),
+                new HandoffFile("schema\\circuit-ir.schema.json", "IR Schema", "json"),
+                new HandoffFile("docs\\circuit-cnl-v0.1.md", "CNL 语法说明", "markdown"),
+                new HandoffFile("docs\\llm-cnl-contract-v0.1.md", "LLM CNL 契约", "markdown"),
+                new HandoffFile("docs\\erc-rules-v0.1.md", "ERC 规则", "markdown"),
+                new HandoffFile("docs\\component-library-notes-v0.1.md", "器件库说明", "markdown"),
+                new HandoffFile("samples\\Sample-01-voltage-divider.txt", "Sample 01：电阻分压", "text"),
+                new HandoffFile("samples\\Sample-02-npn-low-side-switch.txt", "Sample 02：NPN 低边 LED 开关", "text"),
+                new HandoffFile("samples\\Sample-03-pnp-high-side-switch.txt", "Sample 03：PNP 高边 LED 开关", "text"),
+                new HandoffFile("samples\\Sample-04-cmos-inverter-nmos-pmos.txt", "Sample 04：NMOS + PMOS CMOS 反相器", "text"),
+                new HandoffFile("samples\\Sample-05-opamp-noninverting-amplifier.txt", "Sample 05：运放同相放大器", "text")
+            };
+        }
+
+        private static void AppendFileAsMarkdown(StringBuilder markdown, string repoRoot, HandoffFile file)
+        {
+            string path = Path.Combine(repoRoot, file.RelativePath);
+            markdown.AppendLine("## " + file.Title);
+            markdown.AppendLine();
+            markdown.AppendLine("来源：`" + file.RelativePath.Replace("\\", "/") + "`");
+            markdown.AppendLine();
+            if (!File.Exists(path))
+            {
+                markdown.AppendLine("> 文件不存在：" + file.RelativePath);
+                markdown.AppendLine();
+                return;
+            }
+
+            string content = File.ReadAllText(path, Encoding.UTF8);
+            markdown.AppendLine("````" + file.Fence);
+            markdown.Append(content);
+            if (!content.EndsWith("\n", StringComparison.Ordinal)) markdown.AppendLine();
+            markdown.AppendLine("````");
+            markdown.AppendLine();
         }
 
         private static void ApplySafeSplitterDistance(SplitContainer split, double ratio)
