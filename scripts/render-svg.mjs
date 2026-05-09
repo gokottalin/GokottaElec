@@ -44,8 +44,12 @@ const width = 1120;
 const height = 760;
 const inputTagVerticalOffset = 54;
 const inputTagTipOffset = 74;
+const inputTagRotatedTipOffset = 54;
+const inputTagCollisionPadding = 6;
 const lines = [];
 const add = (line) => lines.push(line);
+const drawnSegments = [];
+const placedInputTagBoxes = [];
 
 const netOf = (refdes, terminal) => netByTerminal.get(`${refdes}.${terminal}`);
 const findDevice = (predicate) => devices.find(predicate);
@@ -54,11 +58,13 @@ const deviceHasNets = (device, ...netIds) => {
   const actual = new Set(deviceRecords(device).map((record) => record.net));
   return netIds.every((netId) => actual.has(netId));
 };
-const findTwoTerminalBetween = (type, netA, netB, exclude = new Set()) =>
-  devices.find((device) => {
+const findTwoTerminalBetween = (type, netA, netB, exclude = new Set()) => {
+  if (!netA || !netB || netA === netB) return undefined;
+  return devices.find((device) => {
     if (exclude.has(device.refdes) || device.component_type !== type) return false;
     return deviceHasNets(device, netA, netB);
   });
+};
 
 const paramValue = (device, preferred = []) => {
   if (device.value) return device.value;
@@ -103,8 +109,62 @@ const beginSvg = () => {
 };
 
 const endSvg = () => add(`</svg>`);
+const segmentBounds = (segment) => ({
+  x1: Math.min(segment.a.x, segment.b.x),
+  y1: Math.min(segment.a.y, segment.b.y),
+  x2: Math.max(segment.a.x, segment.b.x),
+  y2: Math.max(segment.a.y, segment.b.y)
+});
+const inflateRect = (rect, padding) => ({
+  x1: rect.x1 - padding,
+  y1: rect.y1 - padding,
+  x2: rect.x2 + padding,
+  y2: rect.y2 + padding
+});
+const rectsIntersect = (a, b) =>
+  a.x1 <= b.x2 && a.x2 >= b.x1 && a.y1 <= b.y2 && a.y2 >= b.y1;
+const pointInRect = (point, rect) =>
+  point.x >= rect.x1 && point.x <= rect.x2 && point.y >= rect.y1 && point.y <= rect.y2;
+const orientation = (a, b, c) => {
+  const value = (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
+  if (Math.abs(value) < 0.001) return 0;
+  return value > 0 ? 1 : 2;
+};
+const pointOnSegment = (a, b, c) =>
+  b.x <= Math.max(a.x, c.x) + 0.001 && b.x >= Math.min(a.x, c.x) - 0.001
+  && b.y <= Math.max(a.y, c.y) + 0.001 && b.y >= Math.min(a.y, c.y) - 0.001;
+const segmentsIntersect = (s1, s2) => {
+  const { a: p1, b: q1 } = s1;
+  const { a: p2, b: q2 } = s2;
+  const o1 = orientation(p1, q1, p2);
+  const o2 = orientation(p1, q1, q2);
+  const o3 = orientation(p2, q2, p1);
+  const o4 = orientation(p2, q2, q1);
+  if (o1 !== o2 && o3 !== o4) return true;
+  if (o1 === 0 && pointOnSegment(p1, p2, q1)) return true;
+  if (o2 === 0 && pointOnSegment(p1, q2, q1)) return true;
+  if (o3 === 0 && pointOnSegment(p2, p1, q2)) return true;
+  return o4 === 0 && pointOnSegment(p2, q1, q2);
+};
+const segmentIntersectsRect = (segment, rect) => {
+  if (!rectsIntersect(segmentBounds(segment), rect)) return false;
+  if (pointInRect(segment.a, rect) || pointInRect(segment.b, rect)) return true;
+  const edges = [
+    { a: { x: rect.x1, y: rect.y1 }, b: { x: rect.x2, y: rect.y1 } },
+    { a: { x: rect.x2, y: rect.y1 }, b: { x: rect.x2, y: rect.y2 } },
+    { a: { x: rect.x2, y: rect.y2 }, b: { x: rect.x1, y: rect.y2 } },
+    { a: { x: rect.x1, y: rect.y2 }, b: { x: rect.x1, y: rect.y1 } }
+  ];
+  return edges.some((edge) => segmentsIntersect(segment, edge));
+};
+const recordWireSegments = (points) => {
+  for (let i = 1; i < points.length; i += 1) {
+    drawnSegments.push({ a: points[i - 1], b: points[i] });
+  }
+};
 const wire = (points) => {
   if (points.length < 2) return;
+  recordWireSegments(points);
   add(`<path class="wire" d="${points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ")}" />`);
 };
 const junction = (x, y) => add(`<circle class="junction" cx="${x}" cy="${y}" r="4" />`);
@@ -116,6 +176,10 @@ const powerPort = (netId, x, y) => {
   add(`<path class="port" d="M ${x - 18} ${y} L ${x + 18} ${y} M ${x} ${y} L ${x} ${y + 22}" />`);
   netLabel(netId, x, y - 8);
 };
+const negativePort = (netId, x, y) => {
+  add(`<path class="port" d="M ${x - 18} ${y} L ${x + 18} ${y} M ${x} ${y} L ${x} ${y - 22}" />`);
+  netLabel(netId, x, y + 20);
+};
 const groundPort = (x, y, netId = "GND") => {
   add(`<path class="port" d="M ${x} ${y} L ${x} ${y + 12} M ${x - 18} ${y + 12} L ${x + 18} ${y + 12} M ${x - 12} ${y + 20} L ${x + 12} ${y + 20} M ${x - 6} ${y + 28} L ${x + 6} ${y + 28}" />`);
   if (netId) netLabel(netId, x + 28, y + 22, "start");
@@ -125,19 +189,63 @@ const inputPort = (netId, x, y) => {
   add(`<path class="net-tag" d="M ${x} ${y - 14} L ${x + 54} ${y - 14} L ${x + 74} ${y} L ${x + 54} ${y + 14} L ${x} ${y + 14} Z" />`);
   add(`<text class="net-tag-text${klass}" x="${x + 32}" y="${y + 5}" text-anchor="middle">${esc(netId)}</text>`);
 };
-const inputTagYFor = (mainY, placement = "above") =>
-  mainY + (placement === "below" ? inputTagVerticalOffset : -inputTagVerticalOffset);
-const inputPortToNet = (netId, x, mainY, joinX, placement = "above") => {
+const inputPortRotated = (netId, x, y) => {
+  const klass = netById.get(netId)?.type ? ` net-${netById.get(netId).type}` : "";
+  add(`<path class="net-tag" d="M ${x} ${y - 37} L ${x + 34} ${y - 37} L ${x + 54} ${y} L ${x + 34} ${y + 37} L ${x} ${y + 37} Z" />`);
+  add(`<text class="net-tag-text${klass}" x="${x + 23}" y="${y + 4}" text-anchor="middle" transform="rotate(-90 ${x + 23} ${y + 4})">${esc(netId)}</text>`);
+};
+const inputTagYFor = (mainY, placement = "normal") => {
+  if (placement === "above") return mainY - inputTagVerticalOffset;
+  if (placement === "below") return mainY + inputTagVerticalOffset;
+  if (placement === "far-above") return mainY - inputTagVerticalOffset * 2;
+  if (placement === "far-below") return mainY + inputTagVerticalOffset * 2;
+  return mainY;
+};
+const inputTagRect = (x, y, rotated = false) => rotated
+  ? { x1: x, y1: y - 37, x2: x + 54, y2: y + 37 }
+  : { x1: x, y1: y - 14, x2: x + 74, y2: y + 14 };
+const inputTagIsClear = (rect) => {
+  const padded = inflateRect(rect, inputTagCollisionPadding);
+  if (padded.x1 < 34 || padded.x2 > width - 34 || padded.y1 < 92 || padded.y2 > height - 48) return false;
+  if (placedInputTagBoxes.some((box) => rectsIntersect(padded, inflateRect(box, inputTagCollisionPadding)))) return false;
+  return !drawnSegments.some((segment) => segmentIntersectsRect(segment, padded));
+};
+const inputPortCandidate = (x, mainY, joinX, placement, rotated = false) => {
   const tagY = inputTagYFor(mainY, placement);
-  if (tagY === mainY) {
-    throw new Error(`Input tag ${netId} must not share y=${mainY} with its main signal wire`);
+  const tipOffset = rotated ? inputTagRotatedTipOffset : inputTagTipOffset;
+  const path = tagY === mainY
+    ? [{ x: x + tipOffset, y: tagY }, { x: joinX, y: mainY }]
+    : [{ x: x + tipOffset, y: tagY }, { x: joinX, y: tagY }, { x: joinX, y: mainY }];
+  return {
+    x,
+    tagY,
+    rotated,
+    path,
+    rect: inputTagRect(x, tagY, rotated)
+  };
+};
+const inputPortToNet = (netId, x, mainY, joinX, placement = "auto") => {
+  const normalPlacements = placement === "auto"
+    ? ["normal", "above", "below", "far-above", "far-below"]
+    : [placement, "above", "below", "normal", "far-above", "far-below"];
+  const rotatedPlacements = placement === "auto"
+    ? ["normal", "above", "below", "far-above", "far-below"]
+    : [placement, "normal", "above", "below", "far-above", "far-below"];
+  const candidates = [
+    ...normalPlacements.map((candidatePlacement) => inputPortCandidate(x, mainY, joinX, candidatePlacement, false)),
+    ...rotatedPlacements.map((candidatePlacement) => inputPortCandidate(x, mainY, joinX, candidatePlacement, true))
+  ];
+  const chosen = candidates.find((candidate) => inputTagIsClear(candidate.rect))
+    ?? candidates.find((candidate) => candidate.rotated)
+    ?? candidates[0];
+
+  if (chosen.rotated) {
+    inputPortRotated(netId, chosen.x, chosen.tagY);
+  } else {
+    inputPort(netId, chosen.x, chosen.tagY);
   }
-  inputPort(netId, x, tagY);
-  wire([
-    { x: x + inputTagTipOffset, y: tagY },
-    { x: joinX, y: tagY },
-    { x: joinX, y: mainY }
-  ]);
+  placedInputTagBoxes.push(chosen.rect);
+  wire(chosen.path);
   return { x: joinX, y: mainY };
 };
 const outputPort = (netId, x, y) => {
@@ -281,6 +389,20 @@ const drawMosNmos = ({ device, x, y }) => {
   return { G: { x: x - 72, y }, D: { x: x + 28, y: y - 62 }, S: { x: x + 28, y: y + 62 } };
 };
 
+const drawMosPmos = ({ device, x, y }) => {
+  add(`<path class="symbol" d="M ${x - 30} ${y - 36} L ${x - 30} ${y + 36} M ${x - 12} ${y - 38} L ${x - 12} ${y - 10} M ${x - 12} ${y + 10} L ${x - 12} ${y + 38}" />`);
+  add(`<path class="symbol" d="M ${x - 12} ${y - 26} L ${x + 28} ${y - 26} L ${x + 28} ${y - 62} M ${x - 12} ${y + 26} L ${x + 28} ${y + 26} L ${x + 28} ${y + 62} M ${x - 30} ${y} L ${x - 46} ${y}" />`);
+  add(`<circle class="symbol-fill" cx="${x - 52}" cy="${y}" r="6" />`);
+  wire([{ x: x - 86, y }, { x: x - 58, y }]);
+  add(`<path class="symbol" d="M ${x + 16} ${y - 8} L ${x + 2} ${y} L ${x + 16} ${y + 8}" />`);
+  add(`<text class="terminal" x="${x - 64}" y="${y - 8}">G</text>`);
+  add(`<text class="terminal" x="${x + 40}" y="${y - 42}">S</text>`);
+  add(`<text class="terminal" x="${x + 40}" y="${y + 55}">D</text>`);
+  add(`<text class="refdes" x="${x + 52}" y="${y - 5}">${esc(device.refdes)}</text>`);
+  add(`<text class="value" x="${x + 52}" y="${y + 12}">${esc(paramValue(device, ["model"]))}</text>`);
+  return { G: { x: x - 86, y }, S: { x: x + 28, y: y - 62 }, D: { x: x + 28, y: y + 62 } };
+};
+
 const drawOpamp = ({ device, x, y }) => {
   add(`<path class="symbol-fill" d="M ${x - 70} ${y - 72} L ${x - 70} ${y + 72} L ${x + 76} ${y} Z" />`);
   wire([{ x: x - 118, y: y - 32 }, { x: x - 70, y: y - 32 }]);
@@ -402,6 +524,7 @@ const renderCommonEmitter = () => {
   const biasBottom = findTwoTerminalBetween("RESISTOR", baseNet, groundNet, used); if (biasBottom) used.add(biasBottom.refdes);
   const inputCap = inputNet ? devices.find((d) => d.component_type.startsWith("CAPACITOR") && !used.has(d.refdes) && deviceHasNets(d, inputNet, baseNet)) : undefined;
   const source = devices.find((d) => d.component_type === "VOLTAGE_SOURCE_DC" && deviceHasNets(d, powerNet, groundNet));
+  if (!collectorR) return false;
 
   beginSvg();
   const railY = 132, groundY = 624, qX = 610, qY = 360, dividerX = 350, inputX = 190, sourceX = 105;
@@ -470,6 +593,94 @@ const renderCommonEmitter = () => {
   return true;
 };
 
+const renderBjtLedSwitch = () => {
+  const q = findDevice((d) => d.component_type === "BJT_NPN" || d.component_type === "BJT_PNP");
+  const led = findDevice((d) => d.component_type === "LED");
+  if (!q || !led) return false;
+
+  const isPnp = q.component_type === "BJT_PNP";
+  const powerNet = nets.find((net) => net.type === "power")?.id;
+  const groundNet = nets.find((net) => net.type === "ground")?.id;
+  const inputNet = nets.find((net) => net.type === "input")?.id;
+  const baseNet = netOf(q.refdes, "B");
+  const collectorNet = netOf(q.refdes, "C");
+  const emitterNet = netOf(q.refdes, "E");
+  const ledAnodeNet = netOf(led.refdes, "A");
+  const ledCathodeNet = netOf(led.refdes, "K");
+  if (!powerNet || !groundNet || !inputNet || !baseNet || !collectorNet || !emitterNet || !ledAnodeNet || !ledCathodeNet) return false;
+
+  const used = new Set([q.refdes, led.refdes]);
+  let loadResistor;
+  let baseResistor;
+  let basePullup;
+  if (isPnp) {
+    if (emitterNet !== powerNet || ledCathodeNet !== groundNet) return false;
+    loadResistor = findTwoTerminalBetween("RESISTOR", collectorNet, ledAnodeNet, used);
+    basePullup = findTwoTerminalBetween("RESISTOR", powerNet, baseNet, new Set([...used, loadResistor?.refdes].filter(Boolean)));
+    baseResistor = findTwoTerminalBetween("RESISTOR", inputNet, baseNet, new Set([...used, loadResistor?.refdes, basePullup?.refdes].filter(Boolean)));
+  } else {
+    if (emitterNet !== groundNet || ledCathodeNet !== collectorNet) return false;
+    loadResistor = findTwoTerminalBetween("RESISTOR", powerNet, ledAnodeNet, used);
+    baseResistor = findTwoTerminalBetween("RESISTOR", inputNet, baseNet, new Set([...used, loadResistor?.refdes].filter(Boolean)));
+  }
+  if (!loadResistor || !baseResistor) return false;
+
+  const source = devices.find((d) => d.component_type === "VOLTAGE_SOURCE_DC" && deviceHasNets(d, powerNet, groundNet));
+  beginSvg();
+
+  const railY = 132;
+  const groundY = 624;
+  const sourceX = 120;
+  const ctrlX = 210;
+  const qX = 610;
+  const qY = isPnp ? 300 : 470;
+  const loadX = qX + 24;
+  const baseNode = { x: 430, y: qY };
+
+  powerPort(powerNet, loadX, railY);
+  if (source) {
+    drawVoltageSource({ device: source, x: sourceX, topY: railY + 22, bottomY: groundY });
+    wire([{ x: sourceX, y: railY + 22 }, { x: loadX, y: railY + 22 }]);
+    groundPort(sourceX, groundY, groundNet);
+  }
+
+  const pins = drawBjt({ device: q, x: qX, y: qY });
+  wire([baseNode, pins.B]);
+
+  const inputJoin = inputPortToNet(inputNet, ctrlX, baseNode.y, ctrlX + 108);
+  drawResistor({ device: baseResistor, x1: inputJoin.x, y1: baseNode.y, x2: baseNode.x, y2: baseNode.y, labelPosition: "below" });
+  junction(baseNode.x, baseNode.y);
+
+  if (isPnp) {
+    wire([{ x: loadX, y: railY + 22 }, pins.E]);
+    junction(loadX, railY + 22);
+    if (basePullup) {
+      drawResistor({ device: basePullup, x1: baseNode.x, y1: railY + 22, x2: baseNode.x, y2: baseNode.y, labelSide: "left" });
+      junction(baseNode.x, railY + 22);
+    }
+    wire([{ x: baseNode.x, y: baseNode.y }, { x: baseNode.x, y: pins.B.y }]);
+    drawResistor({ device: loadResistor, x1: pins.C.x, y1: pins.C.y, x2: pins.C.x, y2: 470 });
+    netLabel(collectorNet, pins.C.x + 16, pins.C.y + 22, "start");
+    drawLedVertical({ device: led, x: pins.C.x, yTop: 470, yBottom: 560 });
+    netLabel(ledAnodeNet, pins.C.x + 16, 464, "start");
+    wire([{ x: pins.C.x, y: 560 }, { x: pins.C.x, y: groundY }]);
+    groundPort(pins.C.x, groundY, groundNet);
+  } else {
+    drawResistor({ device: loadResistor, x1: loadX, y1: railY + 22, x2: loadX, y2: 255 });
+    junction(loadX, railY + 22);
+    netLabel(ledAnodeNet, loadX + 16, 250, "start");
+    drawLedVertical({ device: led, x: loadX, yTop: 255, yBottom: 365 });
+    netLabel(collectorNet, loadX + 16, 386, "start");
+    wire([{ x: loadX, y: 365 }, pins.C]);
+    wire([pins.E, { x: pins.E.x, y: groundY }]);
+    groundPort(pins.E.x, groundY, groundNet);
+  }
+
+  netLabel(baseNet, baseNode.x + 10, baseNode.y - 14, "start");
+  endSvg();
+  return true;
+};
+
 const renderNmosLedSwitch = () => {
   const mos = findDevice((d) => d.component_type === "MOS_NMOS_ENHANCEMENT");
   const led = findDevice((d) => d.component_type === "LED");
@@ -507,33 +718,105 @@ const renderNmosLedSwitch = () => {
   return true;
 };
 
+const renderCmosInverter = () => {
+  const nmos = findDevice((d) => d.component_type === "MOS_NMOS_ENHANCEMENT");
+  const pmos = findDevice((d) => d.component_type === "MOS_PMOS_ENHANCEMENT");
+  if (!nmos || !pmos) return false;
+
+  const powerNet = netOf(pmos.refdes, "S");
+  const groundNet = netOf(nmos.refdes, "S");
+  const inputNet = netOf(nmos.refdes, "G");
+  const outputNet = netOf(nmos.refdes, "D");
+  if (!powerNet || !groundNet || !inputNet || !outputNet) return false;
+  if (netOf(pmos.refdes, "G") !== inputNet || netOf(pmos.refdes, "D") !== outputNet) return false;
+
+  const source = devices.find((d) => d.component_type === "VOLTAGE_SOURCE_DC" && deviceHasNets(d, powerNet, groundNet));
+  beginSvg();
+
+  const railY = 132;
+  const groundY = 624;
+  const mosX = 600;
+  const pmosY = 262;
+  const nmosY = 488;
+  const sourceX = 120;
+  const inputX = 190;
+  const gateBusX = 395;
+  const gateMidY = Math.round((pmosY + nmosY) / 2);
+
+  powerPort(powerNet, mosX + 28, railY);
+  if (source) {
+    drawVoltageSource({ device: source, x: sourceX, topY: railY + 22, bottomY: groundY });
+    wire([{ x: sourceX, y: railY + 22 }, { x: mosX + 28, y: railY + 22 }]);
+    groundPort(sourceX, groundY, groundNet);
+  }
+
+  const pPins = drawMosPmos({ device: pmos, x: mosX, y: pmosY });
+  const nPins = drawMosNmos({ device: nmos, x: mosX, y: nmosY });
+  wire([{ x: pPins.S.x, y: railY + 22 }, pPins.S]);
+  junction(pPins.S.x, railY + 22);
+
+  const outputY = Math.round((pPins.D.y + nPins.D.y) / 2);
+  wire([pPins.D, { x: pPins.D.x, y: outputY }, { x: 846, y: outputY }]);
+  wire([nPins.D, { x: nPins.D.x, y: outputY }]);
+  junction(pPins.D.x, outputY);
+  outputPort(outputNet, 920, outputY);
+
+  wire([nPins.S, { x: nPins.S.x, y: groundY }]);
+  groundPort(nPins.S.x, groundY, groundNet);
+
+  const inputJoin = inputPortToNet(inputNet, inputX, gateMidY, inputX + 108);
+  wire([inputJoin, { x: gateBusX, y: gateMidY }]);
+  wire([{ x: gateBusX, y: pPins.G.y }, { x: gateBusX, y: nPins.G.y }]);
+  wire([{ x: gateBusX, y: pPins.G.y }, pPins.G]);
+  wire([{ x: gateBusX, y: nPins.G.y }, nPins.G]);
+  junction(gateBusX, gateMidY);
+
+  endSvg();
+  return true;
+};
+
 const renderOpampNonInverting = () => {
   const opamp = findDevice((d) => d.component_type === "OPAMP_SINGLE");
   if (!opamp) return false;
-  const powerNet = netOf(opamp.refdes, "V+");
-  const groundNet = netOf(opamp.refdes, "V-");
+  const positiveSupplyNet = netOf(opamp.refdes, "V+");
+  const negativeSupplyNet = netOf(opamp.refdes, "V-");
+  const groundNet = nets.find((net) => net.type === "ground")?.id;
   const inputNet = netOf(opamp.refdes, "IN+");
   const outputNet = netOf(opamp.refdes, "OUT");
   const feedbackNet = netOf(opamp.refdes, "IN-");
-  if (!powerNet || !groundNet || !inputNet || !outputNet || !feedbackNet) return false;
+  if (!positiveSupplyNet || !negativeSupplyNet || !groundNet || !inputNet || !outputNet || !feedbackNet) return false;
   const rFeedback = findTwoTerminalBetween("RESISTOR", outputNet, feedbackNet);
   const rGround = findTwoTerminalBetween("RESISTOR", feedbackNet, groundNet, new Set([rFeedback?.refdes].filter(Boolean)));
-  const vcc = devices.find((d) => d.component_type === "VOLTAGE_SOURCE_DC" && deviceHasNets(d, powerNet, groundNet));
+  const vcc = devices.find((d) => d.component_type === "VOLTAGE_SOURCE_DC" && deviceHasNets(d, positiveSupplyNet, groundNet));
+  const negativeSupplyIsGround = negativeSupplyNet === groundNet || netById.get(negativeSupplyNet)?.type === "ground";
+  const vee = negativeSupplyIsGround
+    ? undefined
+    : devices.find((d) => d.component_type === "VOLTAGE_SOURCE_DC" && d.refdes !== vcc?.refdes && deviceHasNets(d, negativeSupplyNet, groundNet));
   const sig = devices.find((d) => d.component_type === "SIGNAL_SOURCE" && deviceHasNets(d, inputNet, groundNet));
   if (!rFeedback || !rGround) return false;
 
   beginSvg();
-  const opX = 620, opY = 352, groundY = 624, railY = 132, vccSourceX = 115, signalSourceX = 250;
+  const opX = 620, opY = 352, groundY = 624, railY = 132, vccSourceX = 115, veeSourceX = 205, signalSourceX = 300;
   const pins = drawOpamp({ device: opamp, x: opX, y: opY });
-  powerPort(powerNet, pins["V+"].x, railY);
+  powerPort(positiveSupplyNet, pins["V+"].x, railY);
   wire([{ x: pins["V+"].x, y: railY + 22 }, pins["V+"]]);
   junction(pins["V+"].x, railY + 22);
-  wire([pins["V-"], { x: pins["V-"].x, y: pins["V-"].y + 24 }]);
-  groundPort(pins["V-"].x, pins["V-"].y + 24, null);
+  if (negativeSupplyIsGround) {
+    wire([pins["V-"], { x: pins["V-"].x, y: groundY - 34 }]);
+    groundPort(pins["V-"].x, groundY - 34, groundNet);
+  } else {
+    wire([pins["V-"], { x: pins["V-"].x, y: groundY - 22 }]);
+    negativePort(negativeSupplyNet, pins["V-"].x, groundY);
+  }
   if (vcc) {
     drawVoltageSource({ device: vcc, x: vccSourceX, topY: railY + 22, bottomY: groundY });
     wire([{ x: vccSourceX, y: railY + 22 }, { x: pins["V+"].x, y: railY + 22 }]);
     groundPort(vccSourceX, groundY, groundNet);
+  }
+  if (vee) {
+    drawVoltageSource({ device: vee, x: veeSourceX, topY: 440, bottomY: groundY - 22 });
+    groundPort(veeSourceX, 440, groundNet);
+    wire([{ x: veeSourceX, y: groundY - 22 }, { x: pins["V-"].x, y: groundY - 22 }]);
   }
   if (sig) {
     drawVoltageSource({ device: sig, x: signalSourceX, topY: pins["IN+"].y, bottomY: pins["IN+"].y + 130 });
@@ -562,14 +845,14 @@ const renderOpampNonInverting = () => {
 };
 
 const renderVoltageDivider = () => {
-  if (devices.some((device) => ["BJT_NPN", "BJT_PNP", "MOS_NMOS_ENHANCEMENT", "OPAMP_SINGLE"].includes(device.component_type))) return false;
+  if (devices.some((device) => ["BJT_NPN", "BJT_PNP", "MOS_NMOS_ENHANCEMENT", "MOS_PMOS_ENHANCEMENT", "OPAMP_SINGLE"].includes(device.component_type))) return false;
   const source = findDevice((device) => device.component_type === "VOLTAGE_SOURCE_DC");
   const outputNet = nets.find((net) => net.type === "output")?.id;
-  const powerNet = nets.find((net) => net.type === "power")?.id;
-  const groundNet = nets.find((net) => net.type === "ground")?.id;
-  if (!source || !outputNet || !powerNet || !groundNet) return false;
+  const topNet = nets.find((net) => net.type === "power")?.id ?? (source ? netOf(source.refdes, "POS") : undefined);
+  const groundNet = nets.find((net) => net.type === "ground")?.id ?? (source ? netOf(source.refdes, "NEG") : undefined);
+  if (!source || !outputNet || !topNet || !groundNet) return false;
 
-  const topResistor = findTwoTerminalBetween("RESISTOR", powerNet, outputNet);
+  const topResistor = findTwoTerminalBetween("RESISTOR", topNet, outputNet);
   const bottomResistor = findTwoTerminalBetween("RESISTOR", outputNet, groundNet, new Set([topResistor?.refdes].filter(Boolean)));
   if (!topResistor || !bottomResistor) return false;
 
@@ -580,7 +863,7 @@ const renderVoltageDivider = () => {
   const sourceX = 180;
   const outputY = 360;
 
-  powerPort(powerNet, dividerX, railY);
+  powerPort(topNet, dividerX, railY);
   drawVoltageSource({ device: source, x: sourceX, topY: railY + 22, bottomY: groundY });
   wire([{ x: sourceX, y: railY + 22 }, { x: dividerX, y: railY + 22 }]);
   junction(dividerX, railY + 22);
@@ -645,7 +928,7 @@ const renderFallback = () => {
   endSvg();
 };
 
-if (!renderEmitterFollower() && !renderCommonEmitter() && !renderNmosLedSwitch() && !renderOpampNonInverting() && !renderVoltageDivider() && !renderRcLowPass()) {
+if (!renderBjtLedSwitch() && !renderEmitterFollower() && !renderCommonEmitter() && !renderCmosInverter() && !renderNmosLedSwitch() && !renderOpampNonInverting() && !renderVoltageDivider() && !renderRcLowPass()) {
   renderFallback();
 }
 

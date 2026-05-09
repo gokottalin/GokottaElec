@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
-using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
@@ -13,11 +12,18 @@ namespace CircuitLangLauncher
     internal static class Program
     {
         private const string AppName = "GokottaElec";
-        private const string AppVersion = "V1.1";
+        private const string AppVersion = "V1.2";
         private static string _lastFinalOutputDir = "";
         private static string _lastLiveText = "";
         private static int _renderSerial = 0;
         private static Icon _appIcon;
+        private static readonly Color ShellBlue = Color.FromArgb(237, 247, 253);
+        private static readonly Color SurfaceWhite = Color.FromArgb(255, 255, 255);
+        private static readonly Color BorderBlue = Color.FromArgb(180, 216, 238);
+        private static readonly Color BrandNavy = Color.FromArgb(13, 72, 133);
+        private static readonly Color BrandBlue = Color.FromArgb(19, 124, 214);
+        private static readonly Color TextBlue = Color.FromArgb(18, 47, 74);
+        private static readonly Color MutedBlue = Color.FromArgb(82, 111, 133);
 
         private sealed class PreviewItem
         {
@@ -48,10 +54,59 @@ namespace CircuitLangLauncher
             }
         }
 
+        private sealed class BrandHeaderPanel : Panel
+        {
+            public BrandHeaderPanel()
+            {
+                DoubleBuffered = true;
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                Rectangle bounds = ClientRectangle;
+                if (bounds.Width <= 0 || bounds.Height <= 0) return;
+
+                using (LinearGradientBrush brush = new LinearGradientBrush(bounds, Color.FromArgb(248, 253, 255), Color.FromArgb(222, 242, 253), 0f))
+                {
+                    e.Graphics.FillRectangle(brush, bounds);
+                }
+
+                using (Pen trace = new Pen(Color.FromArgb(94, 190, 237), 2f))
+                using (Pen traceSoft = new Pen(Color.FromArgb(155, 220, 246), 1.5f))
+                using (SolidBrush node = new SolidBrush(Color.FromArgb(255, 255, 255)))
+                using (Pen nodeStroke = new Pen(Color.FromArgb(51, 151, 220), 2f))
+                {
+                    int right = bounds.Right - 22;
+                    int mid = bounds.Top + bounds.Height / 2;
+                    e.Graphics.DrawLine(trace, right - 260, mid - 12, right - 170, mid - 12);
+                    e.Graphics.DrawLine(trace, right - 170, mid - 12, right - 132, mid - 32);
+                    e.Graphics.DrawLine(traceSoft, right - 240, mid + 16, right - 120, mid + 16);
+                    e.Graphics.DrawLine(traceSoft, right - 120, mid + 16, right - 84, mid - 2);
+                    DrawNode(e.Graphics, node, nodeStroke, right - 260, mid - 12, 10);
+                    DrawNode(e.Graphics, node, nodeStroke, right - 132, mid - 32, 12);
+                    DrawNode(e.Graphics, node, nodeStroke, right - 84, mid - 2, 9);
+                }
+
+                using (Pen border = new Pen(Color.FromArgb(191, 224, 243)))
+                {
+                    e.Graphics.DrawLine(border, bounds.Left, bounds.Bottom - 1, bounds.Right, bounds.Bottom - 1);
+                }
+            }
+
+            private static void DrawNode(Graphics graphics, Brush fill, Pen stroke, int x, int y, int size)
+            {
+                Rectangle rect = new Rectangle(x - size / 2, y - size / 2, size, size);
+                graphics.FillEllipse(fill, rect);
+                graphics.DrawEllipse(stroke, rect);
+            }
+        }
+
         [STAThread]
         private static int Main(string[] args)
         {
-            string exePath = Assembly.GetExecutingAssembly().Location;
+            string exePath = AppContext.BaseDirectory;
             string repoRoot = FindRepoRoot(exePath);
             string cliPath = Path.Combine(repoRoot, "scripts", "elec-cli.mjs");
             string pastePath = Path.Combine(repoRoot, "scripts", "build-paste.mjs");
@@ -88,11 +143,11 @@ namespace CircuitLangLauncher
         {
             Form form = new Form();
             form.Text = AppName + " " + AppVersion + " - 实时电路原理图预览";
-            form.Width = 1440;
-            form.Height = 900;
-            form.MinimumSize = new Size(1050, 680);
+            form.Width = 1220;
+            form.Height = 760;
+            form.MinimumSize = new Size(980, 620);
             form.StartPosition = FormStartPosition.CenterScreen;
-            form.BackColor = Color.FromArgb(245, 247, 250);
+            form.BackColor = ShellBlue;
 
             _appIcon = LoadOrCreateIcon(repoRoot);
             if (_appIcon != null) form.Icon = _appIcon;
@@ -102,25 +157,25 @@ namespace CircuitLangLauncher
             root.ColumnCount = 1;
             root.RowCount = 3;
             root.Padding = new Padding(12);
-            root.BackColor = Color.FromArgb(245, 247, 250);
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
+            root.BackColor = ShellBlue;
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 64));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
 
-            Panel header = BuildHeader();
+            Panel header = BuildHeader(repoRoot);
 
             SplitContainer split = new SplitContainer();
             split.Dock = DockStyle.Fill;
             split.Orientation = Orientation.Vertical;
             split.SplitterWidth = 7;
-            split.BackColor = Color.FromArgb(222, 227, 234);
+            split.BackColor = BorderBlue;
 
             TableLayoutPanel leftLayout = new TableLayoutPanel();
             leftLayout.Dock = DockStyle.Fill;
             leftLayout.ColumnCount = 1;
             leftLayout.RowCount = 2;
-            leftLayout.Padding = new Padding(0, 8, 8, 0);
-            leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+            leftLayout.Padding = new Padding(0, 6, 6, 0);
+            leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
             leftLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             TableLayoutPanel inputBar = new TableLayoutPanel();
@@ -136,12 +191,15 @@ namespace CircuitLangLauncher
             inputLabel.Dock = DockStyle.Fill;
             inputLabel.TextAlign = ContentAlignment.MiddleLeft;
             inputLabel.Font = new Font("Segoe UI", 10, FontStyle.Bold);
-            inputLabel.ForeColor = Color.FromArgb(38, 48, 58);
+            inputLabel.ForeColor = TextBlue;
 
             ComboBox sampleCombo = new ComboBox();
             sampleCombo.Dock = DockStyle.Fill;
             sampleCombo.DropDownStyle = ComboBoxStyle.DropDownList;
             sampleCombo.Font = new Font("Segoe UI", 9);
+            sampleCombo.BackColor = SurfaceWhite;
+            sampleCombo.ForeColor = TextBlue;
+            sampleCombo.FlatStyle = FlatStyle.Popup;
 
             Button loadSampleButton = BuildButton("载入");
             loadSampleButton.Dock = DockStyle.Fill;
@@ -156,6 +214,8 @@ namespace CircuitLangLauncher
             inputBox.WordWrap = false;
             inputBox.Dock = DockStyle.Fill;
             inputBox.BorderStyle = BorderStyle.FixedSingle;
+            inputBox.BackColor = Color.FromArgb(252, 254, 255);
+            inputBox.ForeColor = Color.FromArgb(16, 46, 74);
 
             inputBar.Controls.Add(inputLabel, 0, 0);
             inputBar.Controls.Add(sampleCombo, 1, 0);
@@ -169,10 +229,10 @@ namespace CircuitLangLauncher
             rightLayout.Dock = DockStyle.Fill;
             rightLayout.ColumnCount = 1;
             rightLayout.RowCount = 3;
-            rightLayout.Padding = new Padding(8, 8, 0, 0);
-            rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-            rightLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 148));
+            rightLayout.Padding = new Padding(6, 6, 0, 0);
+            rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+            rightLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 72));
+            rightLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 28));
 
             TableLayoutPanel previewBar = new TableLayoutPanel();
             previewBar.Dock = DockStyle.Fill;
@@ -185,14 +245,14 @@ namespace CircuitLangLauncher
             previewLabel.Text = "实时原理图预览";
             previewLabel.Dock = DockStyle.Fill;
             previewLabel.Font = new Font("Segoe UI", 10, FontStyle.Bold);
-            previewLabel.ForeColor = Color.FromArgb(38, 48, 58);
+            previewLabel.ForeColor = TextBlue;
 
             Label statusLabel = new Label();
-            statusLabel.Text = "就绪";
+            statusLabel.Text = "就绪 · 等待 CNL";
             statusLabel.Dock = DockStyle.Fill;
             statusLabel.TextAlign = ContentAlignment.MiddleRight;
             statusLabel.Font = new Font("Segoe UI", 9);
-            statusLabel.ForeColor = Color.FromArgb(74, 92, 106);
+            statusLabel.ForeColor = MutedBlue;
 
             previewBar.Controls.Add(previewLabel, 0, 0);
             previewBar.Controls.Add(statusLabel, 1, 0);
@@ -211,16 +271,21 @@ namespace CircuitLangLauncher
             listGroup.Text = "电路列表";
             listGroup.Dock = DockStyle.Fill;
             listGroup.Font = new Font("Segoe UI", 9);
+            listGroup.ForeColor = TextBlue;
 
             ListBox circuitList = new ListBox();
             circuitList.Dock = DockStyle.Fill;
             circuitList.Font = new Font("Segoe UI", 9);
+            circuitList.BackColor = Color.FromArgb(252, 254, 255);
+            circuitList.ForeColor = TextBlue;
+            circuitList.BorderStyle = BorderStyle.FixedSingle;
             listGroup.Controls.Add(circuitList);
 
             GroupBox logGroup = new GroupBox();
             logGroup.Text = "构建日志";
             logGroup.Dock = DockStyle.Fill;
             logGroup.Font = new Font("Segoe UI", 9);
+            logGroup.ForeColor = TextBlue;
 
             TextBox logBox = new TextBox();
             logBox.Multiline = true;
@@ -228,6 +293,9 @@ namespace CircuitLangLauncher
             logBox.ReadOnly = true;
             logBox.Font = new Font("Consolas", 9);
             logBox.Dock = DockStyle.Fill;
+            logBox.BackColor = Color.FromArgb(252, 254, 255);
+            logBox.ForeColor = Color.FromArgb(23, 61, 90);
+            logBox.BorderStyle = BorderStyle.FixedSingle;
             logGroup.Controls.Add(logBox);
 
             resultSplit.Panel1.Controls.Add(listGroup);
@@ -242,22 +310,26 @@ namespace CircuitLangLauncher
             footer.Dock = DockStyle.Fill;
             footer.ColumnCount = 4;
             footer.RowCount = 1;
-            footer.Padding = new Padding(0, 10, 0, 0);
-            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112));
+            footer.Padding = new Padding(0, 8, 0, 0);
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88));
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
-            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 620));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 116));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 510));
 
             Label outputLabel = new Label();
             outputLabel.Text = "输出目录";
             outputLabel.Dock = DockStyle.Fill;
             outputLabel.TextAlign = ContentAlignment.MiddleLeft;
             outputLabel.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            outputLabel.ForeColor = TextBlue;
 
             TextBox outputBox = new TextBox();
             outputBox.Dock = DockStyle.Fill;
             outputBox.Font = new Font("Segoe UI", 9);
             outputBox.Text = Path.Combine(repoRoot, "output", "gokottaelec");
+            outputBox.BackColor = SurfaceWhite;
+            outputBox.ForeColor = TextBlue;
+            outputBox.BorderStyle = BorderStyle.FixedSingle;
 
             Button browseButton = BuildButton("选择目录");
 
@@ -265,6 +337,7 @@ namespace CircuitLangLauncher
             buttons.Dock = DockStyle.Fill;
             buttons.FlowDirection = FlowDirection.LeftToRight;
             buttons.WrapContents = false;
+            buttons.Padding = new Padding(0, 1, 0, 0);
 
             CheckBox liveBox = new CheckBox();
             liveBox.Text = "实时";
@@ -272,9 +345,10 @@ namespace CircuitLangLauncher
             liveBox.Width = 64;
             liveBox.Height = 30;
             liveBox.TextAlign = ContentAlignment.MiddleLeft;
+            liveBox.ForeColor = TextBlue;
 
-            Button renderNowButton = BuildButton("立即渲染");
-            Button generateButton = BuildButton("生成文件");
+            Button renderNowButton = BuildButton("立即渲染", true);
+            Button generateButton = BuildButton("生成文件", true);
             Button loadButton = BuildButton("加载文件");
             Button openButton = BuildButton("打开输出");
 
@@ -295,10 +369,39 @@ namespace CircuitLangLauncher
             form.Controls.Add(root);
             LoadSampleItems(repoRoot, sampleCombo);
 
+            double mainSplitRatio = 0.38;
+            double resultSplitRatio = 0.44;
+            bool adjustingSplitters = false;
+
             form.Shown += delegate
             {
-                ApplySafeSplitterDistance(split, 0.40);
-                ApplySafeSplitterDistance(resultSplit, 0.42);
+                adjustingSplitters = true;
+                ApplySafeSplitterDistance(split, mainSplitRatio, 360, 520);
+                ApplySafeSplitterDistance(resultSplit, resultSplitRatio, 140, 220);
+                adjustingSplitters = false;
+                if (string.IsNullOrWhiteSpace(inputBox.Text) && sampleCombo.Items.Count > 0)
+                {
+                    LoadSelectedSample(sampleCombo, inputBox, outputBox, repoRoot);
+                }
+            };
+
+            form.SizeChanged += delegate
+            {
+                if (form.WindowState == FormWindowState.Minimized) return;
+                adjustingSplitters = true;
+                ApplySafeSplitterDistance(split, mainSplitRatio, 360, 520);
+                ApplySafeSplitterDistance(resultSplit, resultSplitRatio, 140, 220);
+                adjustingSplitters = false;
+            };
+
+            split.SplitterMoved += delegate
+            {
+                if (!adjustingSplitters) mainSplitRatio = GetSplitterRatio(split);
+            };
+
+            resultSplit.SplitterMoved += delegate
+            {
+                if (!adjustingSplitters) resultSplitRatio = GetSplitterRatio(resultSplit);
             };
 
             System.Windows.Forms.Timer liveTimer = new System.Windows.Forms.Timer();
@@ -411,37 +514,40 @@ namespace CircuitLangLauncher
             return form;
         }
 
-        private static Panel BuildHeader()
+        private static Panel BuildHeader(string repoRoot)
         {
-            Panel header = new Panel();
+            Panel header = new BrandHeaderPanel();
             header.Dock = DockStyle.Fill;
-            header.BackColor = Color.FromArgb(245, 247, 250);
+            header.BackColor = ShellBlue;
 
             PictureBox logo = new PictureBox();
-            logo.Left = 0;
-            logo.Top = 8;
+            logo.Left = 12;
+            logo.Top = 9;
             logo.Width = 52;
             logo.Height = 52;
-            logo.SizeMode = PictureBoxSizeMode.StretchImage;
-            logo.Image = CreateLogoBitmap(96);
+            logo.SizeMode = PictureBoxSizeMode.Zoom;
+            logo.Image = LoadBrandBitmap(repoRoot, 128);
+            logo.BackColor = Color.Transparent;
 
             Label title = new Label();
             title.Text = AppName + " " + AppVersion;
-            title.Left = 64;
-            title.Top = 8;
+            title.Left = 78;
+            title.Top = 9;
             title.Width = 360;
             title.Height = 30;
             title.Font = new Font("Segoe UI", 18, FontStyle.Bold);
-            title.ForeColor = Color.FromArgb(28, 41, 51);
+            title.ForeColor = BrandNavy;
+            title.BackColor = Color.Transparent;
 
             Label subtitle = new Label();
             subtitle.Text = "受控自然语言转脚本化电路原理图";
-            subtitle.Left = 66;
-            subtitle.Top = 40;
+            subtitle.Left = 80;
+            subtitle.Top = 42;
             subtitle.Width = 560;
             subtitle.Height = 20;
             subtitle.Font = new Font("Segoe UI", 9);
-            subtitle.ForeColor = Color.FromArgb(85, 99, 110);
+            subtitle.ForeColor = MutedBlue;
+            subtitle.BackColor = Color.Transparent;
 
             header.Controls.Add(logo);
             header.Controls.Add(title);
@@ -451,12 +557,25 @@ namespace CircuitLangLauncher
 
         private static Button BuildButton(string text)
         {
+            return BuildButton(text, false);
+        }
+
+        private static Button BuildButton(string text, bool primary)
+        {
             Button button = new Button();
             button.Text = text;
             button.Width = 108;
-            button.Height = 30;
+            button.Height = 32;
             button.Margin = new Padding(4, 0, 0, 0);
             button.Font = new Font("Segoe UI", 9);
+            button.FlatStyle = FlatStyle.Flat;
+            button.Cursor = Cursors.Hand;
+            button.UseVisualStyleBackColor = false;
+            button.BackColor = primary ? BrandBlue : SurfaceWhite;
+            button.ForeColor = primary ? Color.White : TextBlue;
+            button.FlatAppearance.BorderColor = primary ? Color.FromArgb(12, 102, 186) : BorderBlue;
+            button.FlatAppearance.MouseOverBackColor = primary ? Color.FromArgb(11, 97, 180) : Color.FromArgb(235, 248, 255);
+            button.FlatAppearance.MouseDownBackColor = primary ? Color.FromArgb(8, 75, 142) : Color.FromArgb(217, 241, 253);
             return button;
         }
 
@@ -515,13 +634,22 @@ namespace CircuitLangLauncher
 
         private static void ApplySafeSplitterDistance(SplitContainer split, double ratio)
         {
+            ApplySafeSplitterDistance(split, ratio, 120, 160);
+        }
+
+        private static void ApplySafeSplitterDistance(SplitContainer split, double ratio, int minFirst, int minSecond)
+        {
             try
             {
                 int available = split.Orientation == Orientation.Vertical ? split.Width : split.Height;
                 if (available < 80) return;
-                int min = 120;
-                int max = available - 160;
-                if (max <= min) return;
+                int min = minFirst;
+                int max = available - minSecond;
+                if (max <= min)
+                {
+                    min = Math.Max(80, available / 3);
+                    max = Math.Max(min, available - 120);
+                }
                 int distance = (int)(available * ratio);
                 if (distance < min) distance = min;
                 if (distance > max) distance = max;
@@ -530,6 +658,16 @@ namespace CircuitLangLauncher
             catch
             {
             }
+        }
+
+        private static double GetSplitterRatio(SplitContainer split)
+        {
+            int available = split.Orientation == Orientation.Vertical ? split.Width : split.Height;
+            if (available <= 0) return 0.5;
+            double ratio = (double)split.SplitterDistance / available;
+            if (ratio < 0.18) return 0.18;
+            if (ratio > 0.78) return 0.78;
+            return ratio;
         }
 
         private static void StartBuild(
@@ -577,7 +715,7 @@ namespace CircuitLangLauncher
                 BuildResult result = RunPasteBuild(repoRoot, pastePath, textSnapshot, outputDir);
                 if (form.IsDisposed) return;
 
-                form.BeginInvoke((MethodInvoker)delegate
+                form.BeginInvoke((System.Windows.Forms.MethodInvoker)delegate
                 {
                     generateButton.Enabled = true;
                     renderNowButton.Enabled = true;
@@ -723,26 +861,41 @@ namespace CircuitLangLauncher
         {
             previewBrowser.DocumentText =
                 "<!doctype html><html><head><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" /></head>" +
-                "<body style=\"font-family:Segoe UI,Arial,sans-serif;margin:28px;color:#333;background:#f8fafb\">" +
-                "<div style=\"font-size:22px;font-weight:700;margin-bottom:8px;color:#1c2933\">GokottaElec V1.1 预览</div>" +
-                "<div style=\"font-size:13px;line-height:1.5;color:#52616c\">" + HtmlEscape(message) + "</div>" +
+                "<body style=\"font-family:Segoe UI,Arial,sans-serif;margin:0;color:#123657;background:#edf7fd\">" +
+                "<div style=\"height:100%;min-height:420px;display:flex;align-items:center;justify-content:center;padding:28px;box-sizing:border-box\">" +
+                "<div style=\"max-width:520px;text-align:center;border:1px solid #b7d8ee;background:#ffffff;padding:30px 34px;box-sizing:border-box\">" +
+                "<div style=\"width:74px;height:74px;margin:0 auto 18px;border-radius:18px;background:#0d64b8;position:relative;overflow:hidden\">" +
+                "<div style=\"position:absolute;left:-10px;top:27px;width:58px;height:10px;background:#45bff3\"></div>" +
+                "<div style=\"position:absolute;left:23px;top:16px;width:42px;height:42px;border:8px solid #ffffff;border-left-color:#45bff3;border-radius:50%\"></div>" +
+                "<div style=\"position:absolute;right:12px;top:16px;width:14px;height:14px;border:6px solid #ffffff;border-radius:50%;background:#1fa9ed\"></div>" +
+                "</div>" +
+                "<div style=\"font-size:22px;font-weight:700;margin-bottom:8px;color:#0d4885\">GokottaElec " + AppVersion + " 预览</div>" +
+                "<div style=\"font-size:13px;line-height:1.6;color:#526f85\">" + HtmlEscape(message) + "</div>" +
+                "</div></div>" +
                 "</body></html>";
         }
 
         private static void ShowSvgPreview(WebBrowser previewBrowser, string svgPath)
         {
-            string uri = new Uri(svgPath).AbsoluteUri;
-            previewBrowser.DocumentText =
-                "<!doctype html><html><head><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" />" +
-                "<style>" +
-                "html,body{width:100%;height:100%;margin:0;background:#eef2f5;overflow:hidden;}" +
-                ".frame{position:absolute;left:0;top:0;right:0;bottom:0;padding:10px;box-sizing:border-box;}" +
-                ".surface{width:100%;height:100%;background:#fff;border:1px solid #ccd6df;box-sizing:border-box;overflow:auto;text-align:center;}" +
-                ".surface:before{content:'';display:inline-block;height:100%;vertical-align:middle;}" +
-                "img{max-width:100%;max-height:100%;width:auto;height:auto;vertical-align:middle;}" +
-                "</style></head><body>" +
-                "<div class=\"frame\"><div class=\"surface\"><img src=\"" + HtmlEscape(uri) + "\" /></div></div>" +
-                "</body></html>";
+            try
+            {
+                string svg = File.ReadAllText(svgPath, Encoding.UTF8);
+                previewBrowser.DocumentText =
+                    "<!doctype html><html><head><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" />" +
+                    "<style>" +
+                    "html,body{width:100%;height:100%;margin:0;background:#edf7fd;overflow:hidden;}" +
+                    ".frame{position:absolute;left:0;top:0;right:0;bottom:0;padding:12px;box-sizing:border-box;}" +
+                    ".surface{width:100%;height:100%;background:#fff;border:1px solid #b7d8ee;box-sizing:border-box;overflow:auto;text-align:center;}" +
+                    ".surface:before{content:'';display:inline-block;height:100%;vertical-align:middle;}" +
+                    "svg{max-width:100%;max-height:100%;width:auto;height:auto;vertical-align:middle;display:inline-block;}" +
+                    "</style></head><body>" +
+                    "<div class=\"frame\"><div class=\"surface\">" + svg + "</div></div>" +
+                    "</body></html>";
+            }
+            catch (Exception ex)
+            {
+                SetPreviewHtml(previewBrowser, "SVG preview failed: " + ex.Message);
+            }
         }
 
         private static string HtmlEscape(string value)
@@ -758,6 +911,56 @@ namespace CircuitLangLauncher
             return Path.GetFullPath(Path.Combine(repoRoot, trimmed));
         }
 
+        private static Bitmap LoadBrandBitmap(string repoRoot, int size)
+        {
+            string pngPath = Path.Combine(repoRoot, "launcher", "GokottaElec.png");
+            if (File.Exists(pngPath))
+            {
+                try
+                {
+                    using (Image source = Image.FromFile(pngPath))
+                    {
+                        Bitmap bitmap = new Bitmap(size, size);
+                        using (Graphics graphics = Graphics.FromImage(bitmap))
+                        {
+                            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                            graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                            graphics.Clear(Color.Transparent);
+                            graphics.DrawImage(source, new Rectangle(0, 0, size, size));
+                        }
+                        return bitmap;
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            if (_appIcon != null)
+            {
+                try
+                {
+                    using (Bitmap iconBitmap = _appIcon.ToBitmap())
+                    {
+                        Bitmap bitmap = new Bitmap(size, size);
+                        using (Graphics graphics = Graphics.FromImage(bitmap))
+                        {
+                            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                            graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                            graphics.Clear(Color.Transparent);
+                            graphics.DrawImage(iconBitmap, new Rectangle(0, 0, size, size));
+                        }
+                        return bitmap;
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            return CreateLogoBitmap(size);
+        }
+
         private static Bitmap CreateLogoBitmap(int size)
         {
             Bitmap bitmap = new Bitmap(size, size);
@@ -767,37 +970,63 @@ namespace CircuitLangLauncher
                 graphics.Clear(Color.Transparent);
 
                 Rectangle bounds = new Rectangle(3, 3, size - 6, size - 6);
-                using (SolidBrush bg = new SolidBrush(Color.FromArgb(185, 225, 247)))
-                using (SolidBrush accent = new SolidBrush(Color.FromArgb(73, 159, 211)))
-                using (Pen trace = new Pen(Color.FromArgb(20, 88, 130), Math.Max(2, size / 18)))
-                using (Pen accentPen = new Pen(Color.FromArgb(109, 190, 232), Math.Max(2, size / 16)))
+                using (GraphicsPath round = RoundedRect(bounds, Math.Max(10, size / 5)))
+                using (LinearGradientBrush bg = new LinearGradientBrush(bounds, Color.FromArgb(9, 64, 139), Color.FromArgb(20, 125, 219), 45f))
+                using (Pen whiteTrace = new Pen(Color.White, Math.Max(5, size / 11)))
+                using (Pen cyanTrace = new Pen(Color.FromArgb(80, 190, 241), Math.Max(4, size / 13)))
+                using (SolidBrush cyan = new SolidBrush(Color.FromArgb(31, 169, 237)))
+                using (SolidBrush white = new SolidBrush(Color.White))
                 {
-                    graphics.FillEllipse(bg, bounds);
-                    graphics.DrawArc(accentPen, bounds, -35, 250);
+                    whiteTrace.StartCap = LineCap.Round;
+                    whiteTrace.EndCap = LineCap.Round;
+                    cyanTrace.StartCap = LineCap.Round;
+                    cyanTrace.EndCap = LineCap.Round;
+                    graphics.FillPath(bg, round);
 
-                    int mid = size / 2;
-                    graphics.DrawLine(trace, size / 5, mid, size / 2, mid);
-                    graphics.DrawLine(trace, size / 2, mid, size * 3 / 4, size / 3);
-                    graphics.DrawLine(trace, size / 2, mid, size * 3 / 4, size * 2 / 3);
-                    graphics.FillEllipse(Brushes.White, size / 5 - 4, mid - 4, 8, 8);
-                    graphics.FillEllipse(accent, size * 3 / 4 - 5, size / 3 - 5, 10, 10);
-                    graphics.FillEllipse(accent, size * 3 / 4 - 5, size * 2 / 3 - 5, 10, 10);
-                }
-
-                using (Font font = new Font("Segoe UI", size / 3.0f, FontStyle.Bold, GraphicsUnit.Pixel))
-                using (SolidBrush brush = new SolidBrush(Color.FromArgb(18, 75, 117)))
-                {
-                    graphics.DrawString("G", font, brush, size * 0.30f, size * 0.22f);
+                    Rectangle arc = new Rectangle(size / 5, size / 5, size * 3 / 5, size * 3 / 5);
+                    graphics.DrawArc(cyanTrace, arc, 180, 225);
+                    graphics.DrawArc(whiteTrace, arc, 202, 245);
+                    graphics.DrawLine(whiteTrace, size / 2, size / 2, size * 4 / 5, size / 2);
+                    graphics.DrawLine(cyanTrace, size / 7, size / 2, size * 2 / 5, size / 2);
+                    DrawLogoNode(graphics, white, cyan, size * 7 / 10, size / 4, Math.Max(10, size / 5));
+                    DrawLogoNode(graphics, white, cyan, size * 2 / 5, size / 2, Math.Max(10, size / 6));
+                    DrawLogoNode(graphics, white, cyan, size * 2 / 3, size * 2 / 3, Math.Max(9, size / 7));
                 }
             }
             return bitmap;
         }
 
+        private static GraphicsPath RoundedRect(Rectangle bounds, int radius)
+        {
+            int diameter = radius * 2;
+            GraphicsPath path = new GraphicsPath();
+            path.AddArc(bounds.Left, bounds.Top, diameter, diameter, 180, 90);
+            path.AddArc(bounds.Right - diameter, bounds.Top, diameter, diameter, 270, 90);
+            path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
+            path.AddArc(bounds.Left, bounds.Bottom - diameter, diameter, diameter, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+
+        private static void DrawLogoNode(Graphics graphics, Brush outer, Brush inner, int x, int y, int size)
+        {
+            int outerSize = size;
+            int innerSize = Math.Max(4, size / 2);
+            graphics.FillEllipse(outer, x - outerSize / 2, y - outerSize / 2, outerSize, outerSize);
+            graphics.FillEllipse(inner, x - innerSize / 2, y - innerSize / 2, innerSize, innerSize);
+        }
+
         private static Icon LoadOrCreateIcon(string repoRoot)
         {
-            string iconPath = Path.Combine(repoRoot, "launcher", "GokottaElec.ico");
-            if (File.Exists(iconPath))
+            string[] iconPaths =
             {
+                Path.Combine(repoRoot, "launcher", "GokottaElecApp.ico"),
+                Path.Combine(repoRoot, "launcher", "GokottaElec.ico")
+            };
+
+            foreach (string iconPath in iconPaths)
+            {
+                if (!File.Exists(iconPath)) continue;
                 try
                 {
                     return new Icon(iconPath);
@@ -885,7 +1114,9 @@ namespace CircuitLangLauncher
 
         private static string FindRepoRoot(string exePath)
         {
-            DirectoryInfo directory = new DirectoryInfo(Path.GetDirectoryName(exePath) ?? Directory.GetCurrentDirectory());
+            DirectoryInfo directory = Directory.Exists(exePath)
+                ? new DirectoryInfo(exePath)
+                : new DirectoryInfo(Path.GetDirectoryName(exePath) ?? Directory.GetCurrentDirectory());
             for (DirectoryInfo current = directory; current != null; current = current.Parent)
             {
                 if (File.Exists(Path.Combine(current.FullName, "scripts", "elec-cli.mjs")) &&

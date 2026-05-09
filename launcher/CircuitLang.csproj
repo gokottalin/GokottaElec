@@ -6,6 +6,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>GokottaElec</AssemblyName>
-    <ApplicationIcon>GokottaElec.ico</ApplicationIcon>
+    <ApplicationIcon>GokottaElecApp.ico</ApplicationIcon>
   </PropertyGroup>
 </Project>
