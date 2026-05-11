@@ -2,7 +2,7 @@
 
 GokottaElec 用于把受控自然语言电路描述转换为脚本生成的电路原理图，并保留给其他 LLM 对接的 CNL 输出契约。
 
-当前版本：`V1.3`
+当前版本：`V1.4`
 
 GitHub 目标仓库：
 
@@ -13,6 +13,7 @@ https://github.com/gokottalin/GokottaElec.git
 ## 目录结构
 
 - `dist/GokottaElec.exe`：Windows 桌面程序入口。
+- `dist/GokottaElecCLI.exe`：Windows 命令行入口，用于脚本、批处理和 Agent 验证。
 - `samples/`：5 个全新 Sample 输入文件，可直接加载或拖入命令行验证。
 - `llm-handoff/`：给其他 LLM 使用的完整对接文件。
 - `llm-interface/`：给其他 LLM 使用的精简对接入口。
@@ -44,8 +45,8 @@ dist\GokottaElec.exe
 命令行处理 `.txt` 或 `.cnl`：
 
 ```powershell
-dist\GokottaElec.exe samples\Sample-01-voltage-divider.txt output\sample-01
-dist\GokottaElec.exe "C:\Users\10731\Downloads\deepseek_cnl_20260507_72c637.txt" output\deepseek-test
+dist\GokottaElecCLI.exe build samples\Sample-01-voltage-divider.txt output\sample-01
+dist\GokottaElecCLI.exe "C:\Users\10731\Downloads\deepseek_cnl_20260507_72c637.txt" output\deepseek-test
 ```
 
 程序会生成：
@@ -91,12 +92,14 @@ GokottaMaker 需要实现：
 ```http
 GET  /api/elec/samples
 POST /api/elec/build
+GET  /api/elec/llm-handoff?mode=basic
+GET  /api/elec/llm-handoff?mode=full
 ```
 
 详细接口见 `WEB_INTEGRATION_REQUIREMENTS.md`。
 
 ## 版本规则
 
-- 当前版本为 `V1.3`。
+- 当前版本为 `V1.4`。
 - 普通更新增加 `0.1`，例如 `V1.0 -> V1.1`。
 - 重大更新增加 `1.0`，例如 `V1.0 -> V2.0`。

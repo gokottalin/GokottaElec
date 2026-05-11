@@ -87,6 +87,7 @@
 - Parser 遇到“可控硅”时需要根据语境区分 `SCR` 与 `TRIAC`：直流单向控制通常为 `SCR`，交流双向调光/控制通常为 `TRIAC`。
 - ERC 引擎应优先实现这些通用边界字段：`required_connected_terminals`、`floating_terminal_errors`、`warn_same_net`、`isolation_barrier_between`、`requires_external_energy_storage`、`terminal_swap_groups`。
 - 原理图生成器应把 `*_DOT` 端子渲染为绕组点标，把隔离器件的隔离栅画出来。
+
 ## Model/package pin maps
 
 `components/model-packages.v0.1.json` contains model-level, package-specific pin maps. It stays separate from `core-components.v0.1.json`: the core library defines logical device semantics, while the model package library defines physical package pin numbers.
@@ -103,9 +104,12 @@ Validation entry points:
 
 - `npm.cmd run validate:models`
 - `node scripts/validate-model-packages.mjs`
+- `node scripts/elec-cli.mjs validate <input.ir.json>`
+- `npm.cmd run validate:ir -- <input.ir.json>`
+- `node scripts/erc-check.mjs <input.ir.json>`
 
 Runtime behavior:
 
 - `scripts/model-packages.mjs` resolves `device.model` plus `device.package`.
-- `validate-ir.mjs` and `erc-check.mjs` apply model/package defaults before ERC validation.
+- `elec-cli.mjs validate` and `erc-check.mjs` apply model/package defaults before ERC validation.
 - Explicit `device.pin_map` entries override model defaults, so a user can handle known vendor/package exceptions without editing the shared library.

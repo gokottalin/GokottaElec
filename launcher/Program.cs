@@ -12,7 +12,7 @@ namespace CircuitLangLauncher
     internal static class Program
     {
         private const string AppName = "GokottaElec";
-        private const string AppVersion = "V1.3";
+        private const string AppVersion = "V1.4";
         private static string _lastFinalOutputDir = "";
         private static string _lastLiveText = "";
         private static int _renderSerial = 0;

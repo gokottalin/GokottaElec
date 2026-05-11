@@ -65,6 +65,10 @@ const findTwoTerminalBetween = (type, netA, netB, exclude = new Set()) => {
     return deviceHasNets(device, netA, netB);
   });
 };
+const outputStageNeedsPullup = (device) =>
+  ["open_drain", "open-drain", "open_collector", "open-collector"].includes(
+    String(device.parameters?.output_stage ?? "").toLowerCase()
+  );
 
 const paramValue = (device, preferred = []) => {
   if (device.value) return device.value;
@@ -162,6 +166,20 @@ const recordWireSegments = (points) => {
     drawnSegments.push({ a: points[i - 1], b: points[i] });
   }
 };
+const junctionAtRoutedSupplyJoin = (netId, x, y) => {
+  const type = netById.get(netId)?.type;
+  if (type === "power" || type === "ground") junction(x, y);
+};
+const junctionAtRoutedComponentTap = (netId, x, y) => {
+  const type = netById.get(netId)?.type;
+  if (["input", "output", "bias", "internal"].includes(type)) junction(x, y);
+};
+const groundReferencePortToNode = (netId, nodeX, nodeY, { side = "left", offset = 60 } = {}) => {
+  const groundX = side === "right" ? nodeX + offset : nodeX - offset;
+  groundPort(groundX, nodeY, netId);
+  wire([{ x: groundX, y: nodeY }, { x: nodeX, y: nodeY }]);
+  return { x: groundX, y: nodeY };
+};
 const wire = (points) => {
   if (points.length < 2) return;
   recordWireSegments(points);
@@ -188,6 +206,23 @@ const inputPort = (netId, x, y) => {
   const klass = netById.get(netId)?.type ? ` net-${netById.get(netId).type}` : "";
   add(`<path class="net-tag" d="M ${x} ${y - 14} L ${x + 54} ${y - 14} L ${x + 74} ${y} L ${x + 54} ${y + 14} L ${x} ${y + 14} Z" />`);
   add(`<text class="net-tag-text${klass}" x="${x + 32}" y="${y + 5}" text-anchor="middle">${esc(netId)}</text>`);
+};
+const localNetPort = (netId, x, y, side = "left") => {
+  const klass = netById.get(netId)?.type ? ` net-${netById.get(netId).type}` : "";
+  if (side === "right") {
+    add(`<path class="net-tag" d="M ${x + 80} ${y - 14} L ${x + 14} ${y - 14} L ${x} ${y} L ${x + 14} ${y + 14} L ${x + 80} ${y + 14} L ${x + 66} ${y} Z" />`);
+    add(`<text class="net-tag-text${klass}" x="${x + 40}" y="${y + 5}" text-anchor="middle">${esc(netId)}</text>`);
+    return { x, y };
+  }
+  add(`<path class="net-tag" d="M ${x} ${y - 14} L ${x + 66} ${y - 14} L ${x + 80} ${y} L ${x + 66} ${y + 14} L ${x} ${y + 14} L ${x + 14} ${y} Z" />`);
+  add(`<text class="net-tag-text${klass}" x="${x + 40}" y="${y + 5}" text-anchor="middle">${esc(netId)}</text>`);
+  return { x: x + 80, y };
+};
+const localNetPortToNode = (netId, nodeX, nodeY, { side = "left", gap = 36 } = {}) => {
+  const tagX = side === "right" ? nodeX + gap : nodeX - 80 - gap;
+  const tip = localNetPort(netId, tagX, nodeY, side);
+  wire([tip, { x: nodeX, y: nodeY }]);
+  return { x: nodeX, y: nodeY };
 };
 const inputPortRotated = (netId, x, y) => {
   const klass = netById.get(netId)?.type ? ` net-${netById.get(netId).type}` : "";
@@ -294,6 +329,10 @@ const drawResistor = ({ device, x1, y1, x2, y2, labelSide = "right", labelPositi
   const anchor = vertical && labelSide === "left" ? "end" : "start";
   add(`<text class="refdes" x="${tx}" y="${ty}" text-anchor="${anchor}">${esc(device.refdes)}</text>`);
   add(`<text class="value" x="${tx}" y="${ty + 15}" text-anchor="${anchor}">${esc(paramValue(device, ["resistance"]))}</text>`);
+};
+const drawRailPullupResistor = ({ device, x, railY, nodeY }) => {
+  // Rail-side component terminals do not get junction dots; the routed node side does.
+  drawResistor({ device, x1: x, y1: railY, x2: x, y2: nodeY });
 };
 
 const drawCapacitor = ({ device, x1, y1, x2, y2 }) => {
@@ -418,6 +457,28 @@ const drawOpamp = ({ device, x, y }) => {
     OUT: { x: x + 126, y },
     "V+": { x, y: y - 72 },
     "V-": { x, y: y + 72 }
+  };
+};
+
+const drawComparator = ({ device, x, y }) => {
+  add(`<path class="symbol-fill" d="M ${x - 78} ${y - 84} L ${x - 78} ${y + 84} L ${x + 88} ${y} Z" />`);
+  wire([{ x: x - 134, y: y - 38 }, { x: x - 78, y: y - 38 }]);
+  wire([{ x: x - 134, y: y + 38 }, { x: x - 78, y: y + 38 }]);
+  wire([{ x: x + 88, y }, { x: x + 144, y }]);
+  add(`<text class="terminal" x="${x - 68}" y="${y - 34}">+</text>`);
+  add(`<text class="terminal" x="${x - 68}" y="${y + 42}">-</text>`);
+  add(`<text class="terminal" x="${x + 46}" y="${y - 8}">OUT</text>`);
+  add(`<text class="refdes" x="${x - 4}" y="${y - 8}" text-anchor="middle">${esc(device.refdes)}</text>`);
+  add(`<text class="value" x="${x - 4}" y="${y + 10}" text-anchor="middle">${esc(paramValue(device, ["model"]))}</text>`);
+  if (outputStageNeedsPullup(device)) {
+    add(`<text class="terminal" x="${x - 4}" y="${y + 30}" text-anchor="middle">open drain</text>`);
+  }
+  return {
+    "IN+": { x: x - 134, y: y - 38 },
+    "IN-": { x: x - 134, y: y + 38 },
+    OUT: { x: x + 144, y },
+    "V+": { x, y: y - 84 },
+    "V-": { x, y: y + 84 }
   };
 };
 
@@ -807,6 +868,7 @@ const renderOpampNonInverting = () => {
   } else {
     wire([pins["V-"], { x: pins["V-"].x, y: groundY - 22 }]);
     negativePort(negativeSupplyNet, pins["V-"].x, groundY);
+    junctionAtRoutedSupplyJoin(negativeSupplyNet, pins["V-"].x, groundY - 22);
   }
   if (vcc) {
     drawVoltageSource({ device: vcc, x: vccSourceX, topY: railY + 22, bottomY: groundY });
@@ -814,14 +876,16 @@ const renderOpampNonInverting = () => {
     groundPort(vccSourceX, groundY, groundNet);
   }
   if (vee) {
-    drawVoltageSource({ device: vee, x: veeSourceX, topY: 440, bottomY: groundY - 22 });
-    groundPort(veeSourceX, 440, groundNet);
+    const veeGroundY = 440;
+    drawVoltageSource({ device: vee, x: veeSourceX, topY: veeGroundY, bottomY: groundY - 22 });
+    groundReferencePortToNode(groundNet, veeSourceX, veeGroundY, { side: "left" });
     wire([{ x: veeSourceX, y: groundY - 22 }, { x: pins["V-"].x, y: groundY - 22 }]);
   }
   if (sig) {
     drawVoltageSource({ device: sig, x: signalSourceX, topY: pins["IN+"].y, bottomY: pins["IN+"].y + 130 });
     const inputJoin = inputPortToNet(inputNet, 150, pins["IN+"].y, 224);
     wire([inputJoin, { x: signalSourceX, y: pins["IN+"].y }, pins["IN+"]]);
+    junctionAtRoutedComponentTap(inputNet, signalSourceX, pins["IN+"].y);
     groundPort(signalSourceX, pins["IN+"].y + 130, groundNet);
   } else {
     const inputJoin = inputPortToNet(inputNet, 110, pins["IN+"].y, 210);
@@ -840,6 +904,88 @@ const renderOpampNonInverting = () => {
   drawResistor({ device: rGround, x1: fbNode.x, y1: 500, x2: fbNode.x, y2: groundY });
   groundPort(fbNode.x, groundY, groundNet);
   netLabel(feedbackNet, fbNode.x + 12, fbNode.y - 14, "start");
+  endSvg();
+  return true;
+};
+
+const renderComparatorOpenDrainPullup = () => {
+  const comparator = findDevice((d) => d.component_type === "COMPARATOR_SINGLE");
+  if (!comparator) return false;
+
+  const positiveSupplyNet = netOf(comparator.refdes, "V+");
+  const negativeSupplyNet = netOf(comparator.refdes, "V-");
+  const inputPlusNet = netOf(comparator.refdes, "IN+");
+  const inputMinusNet = netOf(comparator.refdes, "IN-");
+  const outputNet = netOf(comparator.refdes, "OUT");
+  const groundNet = nets.find((net) => net.type === "ground")?.id;
+  if (!positiveSupplyNet || !negativeSupplyNet || !inputPlusNet || !inputMinusNet || !outputNet || !groundNet) return false;
+  if (positiveSupplyNet === negativeSupplyNet) return false;
+  if (negativeSupplyNet !== groundNet && netById.get(negativeSupplyNet)?.type !== "ground") return false;
+  if (!outputStageNeedsPullup(comparator)) return false;
+
+  const used = new Set([comparator.refdes]);
+  const pullup = findTwoTerminalBetween("RESISTOR", positiveSupplyNet, outputNet, used);
+  if (!pullup) return false;
+  used.add(pullup.refdes);
+
+  const dividerTop = findTwoTerminalBetween("RESISTOR", positiveSupplyNet, inputMinusNet, used);
+  if (dividerTop) used.add(dividerTop.refdes);
+  const dividerBottom = findTwoTerminalBetween("RESISTOR", inputMinusNet, groundNet, used);
+  if (dividerBottom) used.add(dividerBottom.refdes);
+  if (!dividerTop || !dividerBottom) return false;
+
+  const vcc = devices.find((device) => device.component_type === "VOLTAGE_SOURCE_DC" && deviceHasNets(device, positiveSupplyNet, groundNet));
+  const signal = devices.find((device) => device.component_type === "SIGNAL_SOURCE" && deviceHasNets(device, inputPlusNet, groundNet));
+  if (!vcc || !signal) return false;
+
+  beginSvg();
+  const railY = 132;
+  const railWireY = railY + 22;
+  const groundY = 624;
+  const vccSourceX = 105;
+  const signalSourceX = 300;
+  const inputTagX = 150;
+  const inputJoinX = 250;
+  const dividerX = 548;
+  const compX = 650;
+  const compY = 360;
+  const pullupX = 840;
+  const outputPortX = 985;
+
+  const pins = drawComparator({ device: comparator, x: compX, y: compY });
+  const vrefY = pins["IN-"].y;
+  const vinY = pins["IN+"].y;
+  const outputY = pins.OUT.y;
+
+  powerPort(positiveSupplyNet, pins["V+"].x, railY);
+  wire([{ x: pins["V+"].x, y: railWireY }, pins["V+"]]);
+  wire([{ x: vccSourceX, y: railWireY }, { x: pullupX, y: railWireY }]);
+  junction(pins["V+"].x, railWireY);
+  drawVoltageSource({ device: vcc, x: vccSourceX, topY: railWireY, bottomY: groundY });
+  groundPort(vccSourceX, groundY, groundNet);
+
+  drawResistor({ device: dividerTop, x1: dividerX, y1: railWireY, x2: dividerX, y2: vrefY, labelSide: "left" });
+  drawResistor({ device: dividerBottom, x1: dividerX, y1: vrefY, x2: dividerX, y2: groundY, labelSide: "left" });
+  junction(dividerX, railWireY);
+  junction(dividerX, vrefY);
+  groundPort(dividerX, groundY, groundNet);
+  wire([{ x: dividerX, y: vrefY }, pins["IN-"]]);
+  localNetPortToNode(inputMinusNet, dividerX, vrefY);
+
+  drawRailPullupResistor({ device: pullup, x: pullupX, railY: railWireY, nodeY: outputY });
+  wire([pins.OUT, { x: pullupX, y: outputY }, { x: outputPortX - 74, y: outputY }]);
+  junction(pullupX, outputY);
+  outputPort(outputNet, outputPortX, outputY);
+
+  const inputJoin = inputPortToNet(inputPlusNet, inputTagX, vinY, inputJoinX);
+  drawVoltageSource({ device: signal, x: signalSourceX, topY: vinY, bottomY: vinY + 130 });
+  wire([inputJoin, { x: signalSourceX, y: vinY }, pins["IN+"]]);
+  junction(signalSourceX, vinY);
+  groundPort(signalSourceX, vinY + 130, groundNet);
+
+  wire([pins["V-"], { x: pins["V-"].x, y: groundY - 34 }]);
+  groundPort(pins["V-"].x, groundY - 34, groundNet);
+
   endSvg();
   return true;
 };
@@ -928,7 +1074,7 @@ const renderFallback = () => {
   endSvg();
 };
 
-if (!renderBjtLedSwitch() && !renderEmitterFollower() && !renderCommonEmitter() && !renderCmosInverter() && !renderNmosLedSwitch() && !renderOpampNonInverting() && !renderVoltageDivider() && !renderRcLowPass()) {
+if (!renderBjtLedSwitch() && !renderEmitterFollower() && !renderCommonEmitter() && !renderCmosInverter() && !renderNmosLedSwitch() && !renderOpampNonInverting() && !renderComparatorOpenDrainPullup() && !renderVoltageDivider() && !renderRcLowPass()) {
   renderFallback();
 }
 

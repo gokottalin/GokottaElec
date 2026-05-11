@@ -1,6 +1,6 @@
 # ERC/DRC 规则引擎 v0.1
 
-Agent3 负责从 JSON IR 和器件库生成结构化电气规则校验结果。当前实现位于 `scripts/erc-rules.mjs`，CLI 入口为 `scripts/validate-ir.mjs`。
+Agent3 负责从 JSON IR 和器件库生成结构化电气规则校验结果。当前验证入口为 `node scripts/elec-cli.mjs validate <input.ir.json>`；底层 ERC CLI 入口为 `node scripts/erc-check.mjs <input.ir.json>`。
 
 ## 输出结构
 
@@ -28,6 +28,14 @@ CLI 输出格式：
 ```text
 ERROR: REQUIRED_TERMINAL [Q1.B]: Q1.B is required but not connected
 WARNING: UNUSED_NET [N_BASE]: Net N_BASE has no connected terminals
+```
+
+推荐命令：
+
+```powershell
+node scripts\elec-cli.mjs validate <input.ir.json>
+npm.cmd run validate:ir -- <input.ir.json>
+node scripts\erc-check.mjs <input.ir.json>
 ```
 
 ## 已实现规则
