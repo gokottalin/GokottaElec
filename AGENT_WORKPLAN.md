@@ -9,7 +9,7 @@
 3. GokottaElec 不是一次性发布物，后续仍会持续修改桌面软件功能。
 4. 任何桌面软件、CNL 格式、渲染器、ERC、Sample、LLM 对接格式的变化，都必须同步评估网页端影响。
 5. 网页版发布在 `GokottaMaker`，但核心能力仍以 GokottaElec 的 CNL/IR/ERC/SVG 引擎为准。
-6. 当前软件版本为 `V1.4`；普通更新增加 `0.1`，重大更新增加 `1.0`。
+6. 当前软件版本为 `V1.5`；普通更新增加 `0.1`，重大更新增加 `1.0`。
 7. 目标 GitHub 仓库为 `https://github.com/gokottalin/GokottaElec.git`。
 
 ## 原有 Agent0-Agent4

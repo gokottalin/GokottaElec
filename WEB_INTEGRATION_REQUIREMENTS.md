@@ -2,7 +2,7 @@
 
 本文档定义 `GokottaMaker` 网站接入 `GokottaElec` 的最小接口契约。更面向网页团队的总览交付文档见 `WEB_TEAM_HANDOFF.md`。
 
-当前 GokottaElec 版本：`V1.3`
+当前 GokottaElec 版本：`V1.5`
 
 目标 GitHub 仓库：
 
@@ -16,9 +16,11 @@ https://github.com/gokottalin/GokottaElec.git
 
 - 用户可以粘贴 LLM 输出的 CNL 文本。
 - 用户可以从官方 Sample 中选择示例。
+- 用户可以复制基础或完整 LLM 对接 Markdown。
 - 点击“生成预览”后调用后端接口。
 - 页面展示返回的 SVG 原理图。
 - 页面展示 IR JSON、ERC 和解析日志。
+- 当一次构建返回多个电路时，页面必须允许用户切换每个电路结果。
 - 预留后续保存工程、分享链接、导出文件的入口。
 
 ## 推荐页面文件
@@ -51,6 +53,12 @@ web-miniapp/assets/gokotta-elec-icon.png
 - `pre#irViewer`：IR JSON 展示。
 - `button#downloadSvgButton`：下载 SVG。
 - `button#copyIrButton`：复制 IR。
+- `button#copyBasicHandoffButton`：复制基础 LLM 对接 Markdown。
+- `button#copyFullHandoffButton`：复制完整 LLM 对接 Markdown。
+- `div#circuitResultBar`：多电路结果选择区，仅在 `circuits.length > 1` 时显示。
+- `select#circuitSelect`：选择 `/api/elec/build` 返回的某一个电路。
+- `span#circuitSummary`：显示当前序号和总数，例如 `20 / 20`。
+- `div#sampleTitle`：显示当前 Sample 完整标题，避免长标题在下拉框中被截断。
 
 ## 必须实现的接口
 
@@ -63,7 +71,7 @@ web-miniapp/assets/gokotta-elec-icon.png
 ```json
 {
   "ok": true,
-  "version": "V1.3",
+  "version": "V1.5",
   "samples": [
     {
       "id": "sample-01-voltage-divider",
@@ -79,7 +87,7 @@ web-miniapp/assets/gokotta-elec-icon.png
 ```json
 {
   "ok": false,
-  "version": "V1.3",
+  "version": "V1.5",
   "samples": [],
   "diagnostics": [
     {
@@ -114,7 +122,7 @@ web-miniapp/assets/gokotta-elec-icon.png
 ```json
 {
   "ok": true,
-  "version": "V1.3",
+  "version": "V1.5",
   "circuits": [
     {
       "id": "WEB_SAMPLE_01",
@@ -139,7 +147,7 @@ web-miniapp/assets/gokotta-elec-icon.png
 ```json
 {
   "ok": false,
-  "version": "V1.3",
+  "version": "V1.5",
   "circuits": [],
   "artifacts": {},
   "diagnostics": [
@@ -160,8 +168,77 @@ web-miniapp/assets/gokotta-elec-icon.png
 - `level` 使用 `INFO`、`WARNING` 或 `ERROR`。
 - `ok: true` 可以包含 `WARNING`。
 - `ERROR` 应使顶层 `ok` 为 `false`。
-- 前端优先读取 `artifacts.svg`、`artifacts.ir`、`artifacts.ercText`。
-- 如果没有 `artifacts`，前端回退读取 `circuits[0].svg`、`circuits[0].ir`、`circuits[0].erc`。
+- 前端必须保留完整 `circuits[]`，不能只展示 `circuits[0]` 后丢弃其他电路。
+- 当前推荐前端以 `circuits[]` 为主数据源。
+- `artifacts.svg`、`artifacts.ir`、`artifacts.ercText` 只作为旧式单电路响应的兼容回退。
+- 当 `circuits.length === 1` 时，可以隐藏结果选择区，保持单电路体验。
+- 当 `circuits.length > 1` 时，必须显示结果选择区；切换时 SVG、IR JSON、ERC/diagnostics、下载 SVG 内容和文件名必须同步切换。
+- 推荐下载文件名使用当前电路 ID，例如 `AGENT20_T02_20_OPAMP_NONINVERTING_GAIN2.svg`。
+
+### GET /api/elec/llm-handoff
+
+用于同步桌面端 V1.5 的 `复制基础LLM` 与 `复制完整LLM` 功能，返回可直接粘贴给其他 LLM 的 Markdown 对接包。
+
+查询参数：
+
+```text
+mode=basic | full
+```
+
+成功响应：
+
+```json
+{
+  "ok": true,
+  "version": "V1.5",
+  "mode": "basic",
+  "markdown": "# GokottaElec LLM 基础对接包\n..."
+}
+```
+
+也可以返回 `text/markdown; charset=utf-8`，前端会把响应正文当作 Markdown 复制。
+
+失败响应：
+
+```json
+{
+  "ok": false,
+  "version": "V1.5",
+  "diagnostics": [
+    {
+      "level": "ERROR",
+      "code": "LLM_HANDOFF_UNAVAILABLE",
+      "message": "LLM 对接文件不可用。"
+    }
+  ]
+}
+```
+
+`mode=basic` 至少拼接：
+
+```text
+llm-handoff/README_先读_给其他LLM的文件说明.md
+llm-handoff/01_必需_系统提示词_直接复制给LLM.txt
+llm-handoff/02_必需_CNL输出契约_必须遵守.md
+llm-handoff/03_可选增强_输出模板_让LLM套用.txt
+```
+
+`mode=full` 在 basic 基础上继续拼接：
+
+```text
+llm-handoff/11_可选增强_完整器件库_端子和边界条件.json
+llm-handoff/12_可选增强_型号封装引脚库_PinMap.json
+schema/circuit-ir.schema.json
+docs/circuit-cnl-v0.1.md
+docs/llm-cnl-contract-v0.1.md
+docs/erc-rules-v0.1.md
+docs/component-library-notes-v0.1.md
+samples/Sample-01-voltage-divider.txt
+samples/Sample-02-npn-low-side-switch.txt
+samples/Sample-03-pnp-high-side-switch.txt
+samples/Sample-04-cmos-inverter-nmos-pmos.txt
+samples/Sample-05-opamp-noninverting-amplifier.txt
+```
 
 ## 后端实现建议
 

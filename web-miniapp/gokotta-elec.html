@@ -24,7 +24,13 @@
             <option value="">加载 Sample</option>
           </select>
         </div>
+        <div id="sampleTitle" class="ge-sample-title">当前 Sample：内置最小示例</div>
         <textarea id="cnlInput" spellcheck="false" placeholder="请粘贴 LLM 输出的 CNL 文本。"></textarea>
+        <div class="ge-handoff-bar" aria-label="LLM 对接复制">
+          <span>LLM 对接复制</span>
+          <button id="copyBasicHandoffButton" type="button">复制基础LLM</button>
+          <button id="copyFullHandoffButton" type="button">复制完整LLM</button>
+        </div>
         <div class="ge-toolbar">
           <button id="renderButton" type="button">生成预览</button>
           <button id="clearButton" type="button">清空</button>
@@ -39,6 +45,11 @@
             <button id="fitButton" type="button">适配</button>
             <button id="downloadSvgButton" type="button" disabled>下载 SVG</button>
           </div>
+        </div>
+        <div id="circuitResultBar" class="ge-result-bar" hidden>
+          <label for="circuitSelect">电路结果</label>
+          <select id="circuitSelect" aria-label="选择生成的电路"></select>
+          <span id="circuitSummary">0 / 0</span>
         </div>
         <div id="svgPreview" class="ge-preview-empty">等待生成预览</div>
       </section>

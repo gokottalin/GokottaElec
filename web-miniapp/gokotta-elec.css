@@ -155,12 +155,23 @@ button:disabled {
 }
 
 select {
+  width: min(100%, 420px);
   min-height: 32px;
-  max-width: 240px;
   border: 1px solid var(--ge-border);
   border-radius: 7px;
   background: #ffffff;
   color: var(--ge-text);
+}
+
+.ge-sample-title {
+  min-height: 34px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ge-border);
+  color: var(--ge-muted);
+  background: #fbfdff;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 textarea {
@@ -185,6 +196,45 @@ textarea {
   padding: 10px 12px;
   border-top: 1px solid var(--ge-border);
   background: var(--ge-surface-soft);
+}
+
+.ge-handoff-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 9px 12px;
+  border-top: 1px solid var(--ge-border);
+  background: #f9fcff;
+}
+
+.ge-handoff-bar span {
+  min-width: 106px;
+  color: var(--ge-accent-deep);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ge-result-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--ge-border);
+  background: #fbfdff;
+}
+
+.ge-result-bar label,
+.ge-result-bar span {
+  color: var(--ge-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ge-result-bar select {
+  width: 100%;
+  max-width: none;
 }
 
 #svgPreview {
@@ -260,5 +310,19 @@ pre {
 
   #svgPreview {
     min-height: 360px;
+  }
+
+  .ge-panel-head,
+  .ge-result-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .ge-panel-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  select {
+    width: 100%;
   }
 }

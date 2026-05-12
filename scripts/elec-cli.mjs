@@ -21,7 +21,7 @@ const readJson = (relativeOrAbsolutePath) =>
   JSON.parse(fs.readFileSync(resolvePath(relativeOrAbsolutePath), "utf8"));
 
 const usage = () => {
-  console.log(`GokottaElec V1.4
+  console.log(`GokottaElec V1.5
 
 Usage:
   node scripts/elec-cli.mjs build <input.cnl|input.txt> [output-dir]

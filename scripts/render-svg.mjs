@@ -69,6 +69,10 @@ const outputStageNeedsPullup = (device) =>
   ["open_drain", "open-drain", "open_collector", "open-collector"].includes(
     String(device.parameters?.output_stage ?? "").toLowerCase()
   );
+const findSignalSourceForNet = (signalNet, groundNet) =>
+  signalNet && groundNet
+    ? devices.find((device) => device.component_type === "SIGNAL_SOURCE" && deviceHasNets(device, signalNet, groundNet))
+    : undefined;
 
 const paramValue = (device, preferred = []) => {
   if (device.value) return device.value;
@@ -79,6 +83,14 @@ const paramValue = (device, preferred = []) => {
   if (device.model && preferred.includes("model")) return device.model;
   const firstKey = Object.keys(params)[0];
   return firstKey ? params[firstKey] : device.model ?? device.component_type;
+};
+const sourceValue = (device) => {
+  if (device.component_type !== "SIGNAL_SOURCE") return paramValue(device, ["voltage", "amplitude", "waveform"]);
+  const params = device.parameters ?? {};
+  const values = ["amplitude", "frequency", "waveform"]
+    .map((key) => params[key])
+    .filter((value) => value !== undefined && value !== null && String(value) !== "");
+  return values.length ? values.join(" ") : paramValue(device, ["amplitude", "frequency", "waveform"]);
 };
 
 const beginSvg = () => {
@@ -198,9 +210,12 @@ const negativePort = (netId, x, y) => {
   add(`<path class="port" d="M ${x - 18} ${y} L ${x + 18} ${y} M ${x} ${y} L ${x} ${y - 22}" />`);
   netLabel(netId, x, y + 20);
 };
-const groundPort = (x, y, netId = "GND") => {
+const groundPort = (x, y, netId = "GND", { labelSide = "right" } = {}) => {
   add(`<path class="port" d="M ${x} ${y} L ${x} ${y + 12} M ${x - 18} ${y + 12} L ${x + 18} ${y + 12} M ${x - 12} ${y + 20} L ${x + 12} ${y + 20} M ${x - 6} ${y + 28} L ${x + 6} ${y + 28}" />`);
-  if (netId) netLabel(netId, x + 28, y + 22, "start");
+  if (netId) {
+    const labelX = labelSide === "left" ? x - 28 : x + 28;
+    netLabel(netId, labelX, y + 22, labelSide === "left" ? "end" : "start");
+  }
 };
 const inputPort = (netId, x, y) => {
   const klass = netById.get(netId)?.type ? ` net-${netById.get(netId).type}` : "";
@@ -283,6 +298,15 @@ const inputPortToNet = (netId, x, mainY, joinX, placement = "auto") => {
   wire(chosen.path);
   return { x: joinX, y: mainY };
 };
+const inputPortToDrivenNet = ({ netId, source, groundNet, x, mainY, joinX, groundY, placement = "auto" }) => {
+  const join = inputPortToNet(netId, x, mainY, joinX, placement);
+  if (source && groundNet && groundY !== undefined) {
+    drawVoltageSource({ device: source, x: join.x, topY: mainY, bottomY: groundY });
+    junctionAtRoutedComponentTap(netId, join.x, mainY);
+    groundPort(join.x, groundY, groundNet, { labelSide: "left" });
+  }
+  return join;
+};
 const outputPort = (netId, x, y) => {
   const klass = netById.get(netId)?.type ? ` net-${netById.get(netId).type}` : "";
   add(`<path class="net-tag" d="M ${x - 74} ${y - 14} L ${x - 20} ${y - 14} L ${x} ${y} L ${x - 20} ${y + 14} L ${x - 74} ${y + 14} Z" />`);
@@ -363,7 +387,7 @@ const drawVoltageSource = ({ device, x, topY, bottomY }) => {
   add(`<text class="polarity" x="${x}" y="${cy - 10}" text-anchor="middle">+</text>`);
   add(`<text class="polarity" x="${x}" y="${cy + 22}" text-anchor="middle">-</text>`);
   add(`<text class="refdes" x="${x - 42}" y="${cy - 4}" text-anchor="end">${esc(device.refdes)}</text>`);
-  add(`<text class="value" x="${x - 42}" y="${cy + 13}" text-anchor="end">${esc(paramValue(device, ["voltage", "amplitude", "waveform"]))}</text>`);
+  add(`<text class="value" x="${x - 42}" y="${cy + 13}" text-anchor="end">${esc(sourceValue(device))}</text>`);
 };
 
 const drawLedVertical = ({ device, x, yTop, yBottom }) => {
@@ -500,6 +524,7 @@ const renderEmitterFollower = () => {
   const biasBottom = findTwoTerminalBetween("RESISTOR", baseNet, groundNet, used); if (biasBottom) used.add(biasBottom.refdes);
   const emitterLoad = findTwoTerminalBetween("RESISTOR", emitterNet, isPnp ? powerNet : groundNet, used); if (emitterLoad) used.add(emitterLoad.refdes);
   const inputCap = inputNet ? devices.find((d) => d.component_type.startsWith("CAPACITOR") && !used.has(d.refdes) && deviceHasNets(d, inputNet, baseNet)) : undefined;
+  const inputSource = findSignalSourceForNet(inputNet, groundNet);
   const source = devices.find((d) => d.component_type === "VOLTAGE_SOURCE_DC" && deviceHasNets(d, powerNet, groundNet));
   if (!emitterLoad) return false;
 
@@ -538,7 +563,15 @@ const renderEmitterFollower = () => {
   junction(dividerX, baseNode.y);
   groundPort(dividerX, groundY, groundNet);
   if (inputCap && inputNet) {
-    const inputJoin = inputPortToNet(inputNet, inputX, baseNode.y, inputX + 100);
+    const inputJoin = inputPortToDrivenNet({
+      netId: inputNet,
+      source: inputSource,
+      groundNet,
+      x: inputX,
+      mainY: baseNode.y,
+      joinX: inputX + 100,
+      groundY
+    });
     drawCapacitor({ device: inputCap, x1: inputJoin.x, y1: baseNode.y, x2: dividerX, y2: baseNode.y });
   }
 
@@ -584,6 +617,7 @@ const renderCommonEmitter = () => {
   const biasTop = findTwoTerminalBetween("RESISTOR", powerNet, baseNet, used); if (biasTop) used.add(biasTop.refdes);
   const biasBottom = findTwoTerminalBetween("RESISTOR", baseNet, groundNet, used); if (biasBottom) used.add(biasBottom.refdes);
   const inputCap = inputNet ? devices.find((d) => d.component_type.startsWith("CAPACITOR") && !used.has(d.refdes) && deviceHasNets(d, inputNet, baseNet)) : undefined;
+  const inputSource = findSignalSourceForNet(inputNet, groundNet);
   const source = devices.find((d) => d.component_type === "VOLTAGE_SOURCE_DC" && deviceHasNets(d, powerNet, groundNet));
   if (!collectorR) return false;
 
@@ -643,7 +677,15 @@ const renderCommonEmitter = () => {
   junction(dividerX, baseNode.y);
   groundPort(dividerX, groundY, groundNet);
   if (inputCap && inputNet) {
-    const inputJoin = inputPortToNet(inputNet, inputX, baseNode.y, inputX + 100);
+    const inputJoin = inputPortToDrivenNet({
+      netId: inputNet,
+      source: inputSource,
+      groundNet,
+      x: inputX,
+      mainY: baseNode.y,
+      joinX: inputX + 100,
+      groundY
+    });
     drawCapacitor({ device: inputCap, x1: inputJoin.x, y1: baseNode.y, x2: dividerX, y2: baseNode.y });
   }
   wire([collectorNode, { x: 846, y: collectorNode.y }]);
@@ -687,6 +729,7 @@ const renderBjtLedSwitch = () => {
   if (!loadResistor || !baseResistor) return false;
 
   const source = devices.find((d) => d.component_type === "VOLTAGE_SOURCE_DC" && deviceHasNets(d, powerNet, groundNet));
+  const inputSource = findSignalSourceForNet(inputNet, groundNet);
   beginSvg();
 
   const railY = 132;
@@ -708,7 +751,15 @@ const renderBjtLedSwitch = () => {
   const pins = drawBjt({ device: q, x: qX, y: qY });
   wire([baseNode, pins.B]);
 
-  const inputJoin = inputPortToNet(inputNet, ctrlX, baseNode.y, ctrlX + 108);
+  const inputJoin = inputPortToDrivenNet({
+    netId: inputNet,
+    source: inputSource,
+    groundNet,
+    x: ctrlX,
+    mainY: baseNode.y,
+    joinX: ctrlX + 108,
+    groundY
+  });
   drawResistor({ device: baseResistor, x1: inputJoin.x, y1: baseNode.y, x2: baseNode.x, y2: baseNode.y, labelPosition: "below" });
   junction(baseNode.x, baseNode.y);
 

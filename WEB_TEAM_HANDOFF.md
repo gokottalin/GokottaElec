@@ -2,7 +2,7 @@
 
 本文档给 `GokottaMaker` 网页开发团队使用，目标是把 `GokottaElec` 作为一个网页小工具接入网站。当前不要求一次性做完整云端 EDA，只需要实现 Sample 加载、CNL 提交、SVG 预览、IR/ ERC 诊断展示这条最小链路。
 
-当前 GokottaElec 版本：`V1.3`
+当前 GokottaElec 版本：`V1.5`
 
 项目仓库：
 
@@ -24,6 +24,8 @@ https://github.com/gokottalin/GokottaElec.git
 - 提供 CNL 输入界面。
 - 调用后端 `/api/elec/*`。
 - 展示后端返回的 SVG、IR JSON 和 diagnostics。
+- 提供与桌面端一致的基础/完整 LLM 对接 Markdown 复制入口。
+- 对 `/api/elec/build` 返回的多个 `circuits[]` 提供结果切换，不吞掉第 2 个之后的电路。
 - 保持 Sample、接口字段和 LLM 输出契约与本仓库同步。
 
 ## 2. 当前文件分布
@@ -91,6 +93,8 @@ web-miniapp/assets/gokotta-elec-icon.png
 ```http
 GET  /api/elec/samples
 POST /api/elec/build
+GET  /api/elec/llm-handoff?mode=basic
+GET  /api/elec/llm-handoff?mode=full
 ```
 
 如果后端未接入，页面会自动显示 fallback Sample 和错误诊断。
@@ -108,7 +112,7 @@ GET /api/elec/samples
 ```json
 {
   "ok": true,
-  "version": "V1.3",
+  "version": "V1.5",
   "samples": [
     {
       "id": "sample-01-voltage-divider",
@@ -151,7 +155,7 @@ Content-Type: application/json
 ```json
 {
   "ok": true,
-  "version": "V1.3",
+  "version": "V1.5",
   "circuits": [
     {
       "id": "WEB_SAMPLE_01",
@@ -176,7 +180,7 @@ Content-Type: application/json
 ```json
 {
   "ok": false,
-  "version": "V1.3",
+  "version": "V1.5",
   "circuits": [],
   "artifacts": {},
   "diagnostics": [
@@ -193,11 +197,40 @@ Content-Type: application/json
 
 兼容要求：
 
-- 前端会优先读取 `artifacts.svg`、`artifacts.ir`、`artifacts.ercText`。
-- 如果没有 `artifacts`，前端会回退读取 `circuits[0].svg`、`circuits[0].ir`、`circuits[0].erc`。
+- 前端以 `circuits[]` 为主数据源，并保留完整数组。
+- `artifacts.svg`、`artifacts.ir`、`artifacts.ercText` 只作为旧式单电路响应的兼容回退。
 - `diagnostics` 应始终是数组，成功时可以为空数组。
 - ERC 警告可以返回 `ok: true`，但 `diagnostics[].level` 应为 `WARNING`。
 - 解析失败、ERC 错误或渲染失败应返回 `ok: false`。
+
+多电路要求：
+
+- 前端必须保存完整 `circuits[]`。
+- `circuits.length > 1` 时必须显示结果选择入口。
+- 切换结果时，SVG、IR JSON、ERC/diagnostics、下载 SVG 内容和文件名必须同步切换。
+- Sample 标题较长时，应在下拉框外显示完整标题或提供等价的可识别文本。
+
+### 4.3 复制 LLM 对接包
+
+```http
+GET /api/elec/llm-handoff?mode=basic
+GET /api/elec/llm-handoff?mode=full
+```
+
+该接口同步桌面端 V1.5 的 `复制基础LLM` 与 `复制完整LLM` 按钮。后端读取本仓库中的 LLM 契约、器件库、Schema、文档和 Sample，拼接为 Markdown 返回。
+
+推荐 JSON 响应：
+
+```json
+{
+  "ok": true,
+  "version": "V1.5",
+  "mode": "full",
+  "markdown": "# GokottaElec LLM 完整对接包\n..."
+}
+```
+
+也可以返回 `text/markdown; charset=utf-8`。前端会直接复制响应正文。
 
 ## 5. 后端接入建议
 
@@ -248,6 +281,7 @@ node gokotta-elec-core/scripts/build-paste.mjs <temp-input.txt> <temp-output-dir
 - 用户可以手动粘贴 CNL。
 - Sample 来自 `samples/`。
 - LLM 输出契约来自 `llm-handoff/` 和 `llm-interface/`。
+- V1.5 的网页端 LLM 复制功能应与桌面端 `复制基础LLM`、`复制完整LLM` 的文件集合保持一致。
 
 最少给其他 LLM 的文件：
 
