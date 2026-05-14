@@ -9,11 +9,20 @@
   --ge-accent-dark: #137cd6;
   --ge-accent-deep: #0d4885;
   --ge-danger: #b42318;
+  --ge-danger-soft: #fff3f1;
   --ge-warning: #8a5a00;
+  --ge-warning-soft: #fff8e7;
+  --ge-success: #0f766e;
+  --ge-success-soft: #ecfdf8;
+  --ge-focus: #0b62b8;
 }
 
 * {
   box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 body {
@@ -29,6 +38,11 @@ button,
 select,
 textarea {
   font: inherit;
+}
+
+button,
+select {
+  max-width: 100%;
 }
 
 .ge-shell {
@@ -49,6 +63,10 @@ textarea {
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.96), rgba(224, 244, 254, 0.92));
 }
 
+.ge-header > div {
+  min-width: 0;
+}
+
 .ge-brand-icon {
   display: block;
   width: 54px;
@@ -61,18 +79,21 @@ textarea {
   color: var(--ge-accent-deep);
   font-size: 24px;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .ge-header p {
   margin: 5px 0 0;
   color: var(--ge-muted);
   font-size: 14px;
+  overflow-wrap: anywhere;
 }
 
 .ge-workspace,
 .ge-bottom {
   display: grid;
   gap: 14px;
+  width: 100%;
   max-width: 1280px;
   margin: 0 auto 14px;
 }
@@ -112,6 +133,7 @@ textarea {
   margin: 0;
   font-size: 15px;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .ge-actions,
@@ -130,6 +152,8 @@ button {
   color: var(--ge-text);
   background: #ffffff;
   cursor: pointer;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 button:hover:not(:disabled) {
@@ -141,6 +165,13 @@ button:disabled {
   cursor: not-allowed;
   color: #93a4b1;
   background: #f4f7f9;
+}
+
+button:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(19, 124, 214, 0.28);
+  outline-offset: 2px;
 }
 
 #renderButton {
@@ -176,6 +207,8 @@ select {
 
 textarea {
   flex: 1;
+  width: 100%;
+  min-width: 0;
   min-height: 420px;
   padding: 12px;
   resize: none;
@@ -188,7 +221,8 @@ textarea {
   font-family: Consolas, "Microsoft YaHei UI", monospace;
   font-size: 14px;
   line-height: 1.55;
-  white-space: pre;
+  white-space: pre-wrap;
+  word-break: break-word;
   overflow: auto;
 }
 
@@ -281,8 +315,52 @@ textarea {
   content: "";
 }
 
+.ge-preview-loading::before {
+  animation: ge-pulse 1.2s ease-in-out infinite;
+}
+
+.ge-preview-success,
+.ge-preview-warning,
+.ge-preview-error,
+.ge-preview-backend {
+  box-shadow: inset 0 0 0 2px rgba(19, 124, 214, 0.10);
+}
+
+.ge-preview-success {
+  background:
+    linear-gradient(90deg, rgba(15, 118, 110, 0.08) 1px, transparent 1px) 0 0 / 30px 30px,
+    var(--ge-success-soft);
+}
+
+.ge-preview-warning {
+  background:
+    linear-gradient(90deg, rgba(138, 90, 0, 0.10) 1px, transparent 1px) 0 0 / 30px 30px,
+    var(--ge-warning-soft);
+}
+
+.ge-preview-error,
+.ge-preview-backend {
+  background:
+    linear-gradient(90deg, rgba(180, 35, 24, 0.08) 1px, transparent 1px) 0 0 / 30px 30px,
+    var(--ge-danger-soft);
+}
+
+.ge-preview-success svg {
+  border-color: rgba(15, 118, 110, 0.42);
+}
+
+.ge-preview-warning svg {
+  border-color: rgba(138, 90, 0, 0.45);
+}
+
+.ge-preview-error svg,
+.ge-preview-backend svg {
+  border-color: rgba(180, 35, 24, 0.42);
+}
+
 pre {
   flex: 1;
+  min-width: 0;
   min-height: 180px;
   margin: 0;
   padding: 12px;
@@ -292,10 +370,48 @@ pre {
   font-family: Consolas, monospace;
   font-size: 13px;
   line-height: 1.45;
+  border-left: 4px solid transparent;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-.ge-error {
+.ge-log-info {
+  border-left-color: var(--ge-accent-dark);
+}
+
+.ge-log-loading {
+  border-left-color: var(--ge-accent);
+  background: #f3fbff;
+}
+
+.ge-log-success {
+  border-left-color: var(--ge-success);
+  background: var(--ge-success-soft);
+}
+
+.ge-log-warning {
+  border-left-color: var(--ge-warning);
+  background: var(--ge-warning-soft);
+  color: #5f4000;
+}
+
+.ge-log-error {
+  border-left-color: var(--ge-danger);
+  background: var(--ge-danger-soft);
   color: var(--ge-danger);
+}
+
+@keyframes ge-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.82;
+  }
+
+  50% {
+    transform: scale(0.96);
+    opacity: 1;
+  }
 }
 
 @media (max-width: 900px) {
@@ -324,5 +440,48 @@ pre {
 
   select {
     width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .ge-header {
+    align-items: flex-start;
+    padding: 10px;
+  }
+
+  .ge-brand-icon {
+    width: 46px;
+    height: 46px;
+    flex-basis: 46px;
+  }
+
+  .ge-header h1 {
+    font-size: 20px;
+  }
+
+  .ge-header p {
+    font-size: 13px;
+  }
+
+  .ge-toolbar,
+  .ge-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ge-handoff-bar {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .ge-handoff-bar span,
+  #renderButton {
+    grid-column: 1 / -1;
+  }
+
+  button {
+    width: 100%;
+    min-width: 0;
+    padding: 0 10px;
   }
 }

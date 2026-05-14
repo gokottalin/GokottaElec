@@ -1,8 +1,8 @@
-# GokottaElec 网页开发团队对接说明
+﻿# GokottaElec 网页开发团队对接说明
 
 本文档给 `GokottaMaker` 网页开发团队使用，目标是把 `GokottaElec` 作为一个网页小工具接入网站。当前不要求一次性做完整云端 EDA，只需要实现 Sample 加载、CNL 提交、SVG 预览、IR/ ERC 诊断展示这条最小链路。
 
-当前 GokottaElec 版本：`V1.5`
+当前 GokottaElec 版本：`V1.6`
 
 项目仓库：
 
@@ -112,7 +112,7 @@ GET /api/elec/samples
 ```json
 {
   "ok": true,
-  "version": "V1.5",
+  "version": "V1.6",
   "samples": [
     {
       "id": "sample-01-voltage-divider",
@@ -155,7 +155,7 @@ Content-Type: application/json
 ```json
 {
   "ok": true,
-  "version": "V1.5",
+  "version": "V1.6",
   "circuits": [
     {
       "id": "WEB_SAMPLE_01",
@@ -180,7 +180,7 @@ Content-Type: application/json
 ```json
 {
   "ok": false,
-  "version": "V1.5",
+  "version": "V1.6",
   "circuits": [],
   "artifacts": {},
   "diagnostics": [
@@ -200,6 +200,7 @@ Content-Type: application/json
 - 前端以 `circuits[]` 为主数据源，并保留完整数组。
 - `artifacts.svg`、`artifacts.ir`、`artifacts.ercText` 只作为旧式单电路响应的兼容回退。
 - `diagnostics` 应始终是数组，成功时可以为空数组。
+- `diagnostics[].target` 可以指向 circuit、net、device 或 terminal。单电路响应可以把 net 级 WARNING 放在顶层 `diagnostics`；多电路响应建议把诊断放入对应 `circuits[].diagnostics` / `circuits[].warnings`，或在顶层用 circuit id 作为 `target`。
 - ERC 警告可以返回 `ok: true`，但 `diagnostics[].level` 应为 `WARNING`。
 - 解析失败、ERC 错误或渲染失败应返回 `ok: false`。
 
@@ -217,14 +218,14 @@ GET /api/elec/llm-handoff?mode=basic
 GET /api/elec/llm-handoff?mode=full
 ```
 
-该接口同步桌面端 V1.5 的 `复制基础LLM` 与 `复制完整LLM` 按钮。后端读取本仓库中的 LLM 契约、器件库、Schema、文档和 Sample，拼接为 Markdown 返回。
+该接口同步桌面端 V1.6 的 `复制基础LLM` 与 `复制完整LLM` 按钮。后端读取本仓库中的 LLM 契约、器件库、Schema、文档和 Sample，拼接为 Markdown 返回。
 
 推荐 JSON 响应：
 
 ```json
 {
   "ok": true,
-  "version": "V1.5",
+  "version": "V1.6",
   "mode": "full",
   "markdown": "# GokottaElec LLM 完整对接包\n..."
 }
@@ -281,7 +282,7 @@ node gokotta-elec-core/scripts/build-paste.mjs <temp-input.txt> <temp-output-dir
 - 用户可以手动粘贴 CNL。
 - Sample 来自 `samples/`。
 - LLM 输出契约来自 `llm-handoff/` 和 `llm-interface/`。
-- V1.5 的网页端 LLM 复制功能应与桌面端 `复制基础LLM`、`复制完整LLM` 的文件集合保持一致。
+- V1.6 的网页端 LLM 复制功能应与桌面端 `复制基础LLM`、`复制完整LLM` 的文件集合保持一致。
 
 最少给其他 LLM 的文件：
 

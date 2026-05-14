@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="./gokotta-elec.css" />
 </head>
 <body>
-  <main class="ge-shell">
+  <main id="appShell" class="ge-shell" data-state="idle">
     <header class="ge-header">
       <img class="ge-brand-icon" src="./assets/gokotta-elec-icon.png" alt="" aria-hidden="true" />
       <div>
@@ -51,7 +51,7 @@
           <select id="circuitSelect" aria-label="选择生成的电路"></select>
           <span id="circuitSummary">0 / 0</span>
         </div>
-        <div id="svgPreview" class="ge-preview-empty">等待生成预览</div>
+        <div id="svgPreview" class="ge-preview-empty ge-preview-idle" role="region" aria-live="polite">等待生成预览</div>
       </section>
     </section>
 
@@ -60,7 +60,7 @@
         <div class="ge-panel-head">
           <h2>诊断日志</h2>
         </div>
-        <pre id="diagnosticsLog">接口尚未调用。</pre>
+        <pre id="diagnosticsLog" class="ge-log-info" role="status" aria-live="polite">接口尚未调用。</pre>
       </section>
       <section class="ge-panel">
         <div class="ge-panel-head">

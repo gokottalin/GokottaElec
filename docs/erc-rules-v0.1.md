@@ -27,7 +27,7 @@ CLI 输出格式：
 
 ```text
 ERROR: REQUIRED_TERMINAL [Q1.B]: Q1.B is required but not connected
-WARNING: UNUSED_NET [N_BASE]: Net N_BASE has no connected terminals
+WARNING: UNUSED_NET [N_BIAS]: Net N_BIAS is declared but not used by any connection
 ```
 
 推荐命令：
@@ -51,7 +51,7 @@ node scripts\erc-check.mjs <input.ir.json>
 - 主动器件供电：`forbid_unpowered_use` 检查供电端和回流端是否完整连接。
 - 同网风险：`warn_same_net` 触发 WARNING，`allowed_same_net` 或 `allow same_net(...)` 约束可豁免。
 - 约束表达式：支持 `terminal_connected(...)`、`same_net(a,b)`、`forbid unpowered_use`。
-- 网络风险：无 GND、空网络、单端内部网络、多主动输出并联。
+- 网络风险：无 GND、声明但未被 `connections[]` 使用的网络、空连接网络、单端内部网络、多主动输出并联。
 - 电流限制：`requires_current_limit` 会检查相邻网络是否存在电阻、保险丝或电流源。
 - 开漏/开集输出：`if_output_stage_open_drain_requires_pullup` 检查输出网是否存在上拉电阻。
 - 电压区间：从 GND、DC 电压源、网络说明中的电压文本推断网络电压，结果挂在 `indexes.voltageIntervals`。

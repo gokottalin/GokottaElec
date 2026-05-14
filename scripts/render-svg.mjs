@@ -50,6 +50,8 @@ const lines = [];
 const add = (line) => lines.push(line);
 const drawnSegments = [];
 const placedInputTagBoxes = [];
+const placedNetLabelKeys = new Set();
+const placedPortKeys = new Set();
 
 const netOf = (refdes, terminal) => netByTerminal.get(`${refdes}.${terminal}`);
 const findDevice = (predicate) => devices.find(predicate);
@@ -178,6 +180,13 @@ const recordWireSegments = (points) => {
     drawnSegments.push({ a: points[i - 1], b: points[i] });
   }
 };
+const coordKey = (value) => Number(value).toFixed(2);
+const claimPort = (kind, netId, x, y, extra = "") => {
+  const key = `${kind}:${netId ?? ""}:${coordKey(x)}:${coordKey(y)}:${extra}`;
+  if (placedPortKeys.has(key)) return false;
+  placedPortKeys.add(key);
+  return true;
+};
 const junctionAtRoutedSupplyJoin = (netId, x, y) => {
   const type = netById.get(netId)?.type;
   if (type === "power" || type === "ground") junction(x, y);
@@ -200,17 +209,23 @@ const wire = (points) => {
 const junction = (x, y) => add(`<circle class="junction" cx="${x}" cy="${y}" r="4" />`);
 const netLabel = (id, x, y, anchor = "middle") => {
   const klass = netById.get(id)?.type ? ` net-${netById.get(id).type}` : "";
+  const key = `${id}:${coordKey(x)}:${coordKey(y)}:${anchor}:${klass}`;
+  if (placedNetLabelKeys.has(key)) return;
+  placedNetLabelKeys.add(key);
   add(`<text class="net-label${klass}" x="${x}" y="${y}" text-anchor="${anchor}">${esc(id)}</text>`);
 };
 const powerPort = (netId, x, y) => {
+  if (!claimPort("power", netId, x, y)) return;
   add(`<path class="port" d="M ${x - 18} ${y} L ${x + 18} ${y} M ${x} ${y} L ${x} ${y + 22}" />`);
   netLabel(netId, x, y - 8);
 };
 const negativePort = (netId, x, y) => {
+  if (!claimPort("negative", netId, x, y)) return;
   add(`<path class="port" d="M ${x - 18} ${y} L ${x + 18} ${y} M ${x} ${y} L ${x} ${y - 22}" />`);
   netLabel(netId, x, y + 20);
 };
 const groundPort = (x, y, netId = "GND", { labelSide = "right" } = {}) => {
+  if (!claimPort("ground", netId, x, y)) return;
   add(`<path class="port" d="M ${x} ${y} L ${x} ${y + 12} M ${x - 18} ${y + 12} L ${x + 18} ${y + 12} M ${x - 12} ${y + 20} L ${x + 12} ${y + 20} M ${x - 6} ${y + 28} L ${x + 6} ${y + 28}" />`);
   if (netId) {
     const labelX = labelSide === "left" ? x - 28 : x + 28;
@@ -1042,7 +1057,7 @@ const renderComparatorOpenDrainPullup = () => {
 };
 
 const renderVoltageDivider = () => {
-  if (devices.some((device) => ["BJT_NPN", "BJT_PNP", "MOS_NMOS_ENHANCEMENT", "MOS_PMOS_ENHANCEMENT", "OPAMP_SINGLE"].includes(device.component_type))) return false;
+  if (devices.some((device) => ["BJT_NPN", "BJT_PNP", "MOS_NMOS_ENHANCEMENT", "MOS_PMOS_ENHANCEMENT", "OPAMP_SINGLE", "COMPARATOR_SINGLE"].includes(device.component_type))) return false;
   const source = findDevice((device) => device.component_type === "VOLTAGE_SOURCE_DC");
   const outputNet = nets.find((net) => net.type === "output")?.id;
   const topNet = nets.find((net) => net.type === "power")?.id ?? (source ? netOf(source.refdes, "POS") : undefined);
@@ -1076,7 +1091,7 @@ const renderVoltageDivider = () => {
 };
 
 const renderRcLowPass = () => {
-  if (devices.some((device) => ["BJT_NPN", "BJT_PNP", "MOS_NMOS_ENHANCEMENT", "OPAMP_SINGLE"].includes(device.component_type))) return false;
+  if (devices.some((device) => ["BJT_NPN", "BJT_PNP", "MOS_NMOS_ENHANCEMENT", "MOS_PMOS_ENHANCEMENT", "OPAMP_SINGLE", "COMPARATOR_SINGLE"].includes(device.component_type))) return false;
   const source = findDevice((device) => device.component_type === "SIGNAL_SOURCE");
   const resistor = findDevice((device) => device.component_type === "RESISTOR");
   const capacitor = findDevice((device) => device.component_type.startsWith("CAPACITOR"));
@@ -1125,7 +1140,7 @@ const renderFallback = () => {
   endSvg();
 };
 
-if (!renderBjtLedSwitch() && !renderEmitterFollower() && !renderCommonEmitter() && !renderCmosInverter() && !renderNmosLedSwitch() && !renderOpampNonInverting() && !renderComparatorOpenDrainPullup() && !renderVoltageDivider() && !renderRcLowPass()) {
+if (!renderBjtLedSwitch() && !renderEmitterFollower() && !renderCommonEmitter() && !renderCmosInverter() && !renderNmosLedSwitch() && !renderComparatorOpenDrainPullup() && !renderOpampNonInverting() && !renderVoltageDivider() && !renderRcLowPass()) {
   renderFallback();
 }
 

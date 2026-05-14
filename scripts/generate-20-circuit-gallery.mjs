@@ -24,8 +24,39 @@ function connection(netId, terminals) {
   };
 }
 
+function duplicateValues(values) {
+  const seen = new Set();
+  const duplicates = new Set();
+  for (const value of values) {
+    if (seen.has(value)) duplicates.add(value);
+    seen.add(value);
+  }
+  return [...duplicates];
+}
+
+function enforceGalleryIrRules(irData) {
+  const id = irData.circuit_id ?? irData.circuit?.id ?? "UNKNOWN_CIRCUIT";
+  const netIds = (irData.nets ?? []).map((item) => item.id);
+  const connectionNetIds = (irData.connections ?? []).map((item) => item.net);
+  const declaredNets = new Set(netIds);
+  const connectedNets = new Set(connectionNetIds);
+  const duplicateNetIds = duplicateValues(netIds);
+  const duplicateRefdes = duplicateValues((irData.devices ?? []).map((item) => item.refdes));
+  const undeclaredConnectionNets = [...connectedNets].filter((netId) => !declaredNets.has(netId));
+  const unusedDeclaredNets = [...declaredNets].filter((netId) => !connectedNets.has(netId));
+  const issues = [
+    ...duplicateNetIds.map((netId) => `duplicate net id: ${netId}`),
+    ...duplicateRefdes.map((refdes) => `duplicate refdes: ${refdes}`),
+    ...undeclaredConnectionNets.map((netId) => `connection references undeclared net: ${netId}`),
+    ...unusedDeclaredNets.map((netId) => `declared net is unused: ${netId}`),
+  ];
+  if (issues.length) {
+    throw new Error(`Gallery IR rule violation in ${id}:\n${issues.map((item) => `- ${item}`).join("\n")}`);
+  }
+}
+
 function ir(id, title, nets, devices, connections, description = title) {
-  return {
+  const irData = {
     schema_version: schemaVersion,
     circuit_id: id,
     title,
@@ -34,6 +65,8 @@ function ir(id, title, nets, devices, connections, description = title) {
     devices,
     connections,
   };
+  enforceGalleryIrRules(irData);
+  return irData;
 }
 
 function runNode(args) {
@@ -183,7 +216,6 @@ function commonEmitterNpn({ index, slug, title, vcc, rbTop, rbBottom, rc, re, in
         net("VCC", "power", "positive supply"),
         net("VIN", "input", "ac input"),
         net("N_IN", "internal", "coupled input"),
-        net("N_BIAS", "internal", "base bias"),
         net("VOUT", "output", "collector output"),
         net("N_E", "internal", "emitter node"),
         net("GND", "ground", "ground reference"),
@@ -221,7 +253,6 @@ function commonEmitterPnp({ index, slug, title, vcc, rbTop, rbBottom, rc, re, in
         net("VCC", "power", "positive supply"),
         net("VIN", "input", "ac input"),
         net("N_IN", "internal", "coupled input"),
-        net("N_BIAS", "internal", "base bias"),
         net("VOUT", "output", "collector output"),
         net("N_E", "internal", "emitter node"),
         net("GND", "ground", "ground reference"),
@@ -259,7 +290,6 @@ function emitterFollowerNpn({ index, slug, title, vcc, rbTop, rbBottom, re, inpu
         net("VCC", "power", "positive supply"),
         net("VIN", "input", "ac input"),
         net("N_IN", "internal", "coupled input"),
-        net("N_BIAS", "internal", "base bias"),
         net("VOUT", "output", "emitter output"),
         net("GND", "ground", "ground reference"),
       ],
@@ -300,6 +330,7 @@ function npnLedSwitch({ index, slug, title, vcc, ledResistor, baseResistor, ledC
       ],
       [
         device("V1", "VOLTAGE_SOURCE_DC", { voltage: vcc }),
+        device("V2", "SIGNAL_SOURCE", { waveform: "square", amplitude: "3.3V", frequency: "1kHz" }),
         device("R1", "RESISTOR", { resistance: ledResistor }),
         device("D1", "LED", { color: ledColor }),
         device("Q1", "BJT_NPN", { model: "2N3904" }),
@@ -309,9 +340,9 @@ function npnLedSwitch({ index, slug, title, vcc, ledResistor, baseResistor, ledC
         connection("VCC", [["V1", "POS"], ["R1", "A"]]),
         connection("N_LED_A", [["R1", "B"], ["D1", "A"]]),
         connection("N_COL", [["D1", "K"], ["Q1", "C"]]),
-        connection("CTRL", [["R2", "A"]]),
+        connection("CTRL", [["V2", "OUT"], ["R2", "A"]]),
         connection("N_BASE", [["R2", "B"], ["Q1", "B"]]),
-        connection("GND", [["V1", "NEG"], ["Q1", "E"]]),
+        connection("GND", [["V1", "NEG"], ["V2", "REF"], ["Q1", "E"]]),
       ],
     ),
   };
@@ -334,6 +365,7 @@ function pnpLedSwitch({ index, slug, title, vcc, loadResistor, baseResistor, pul
       ],
       [
         device("V1", "VOLTAGE_SOURCE_DC", { voltage: vcc }),
+        device("V2", "SIGNAL_SOURCE", { waveform: "square", amplitude: "3.3V", frequency: "500Hz" }),
         device("Q1", "BJT_PNP", { model: "2N3906" }),
         device("R1", "RESISTOR", { resistance: loadResistor }),
         device("D1", "LED", { color: ledColor }),
@@ -342,11 +374,11 @@ function pnpLedSwitch({ index, slug, title, vcc, loadResistor, baseResistor, pul
       ],
       [
         connection("VCC", [["V1", "POS"], ["Q1", "E"], ["R3", "A"]]),
-        connection("CTRL", [["R2", "A"]]),
+        connection("CTRL", [["V2", "OUT"], ["R2", "A"]]),
         connection("N_BASE", [["R2", "B"], ["R3", "B"], ["Q1", "B"]]),
         connection("N_COL", [["Q1", "C"], ["R1", "A"]]),
         connection("N_LED_A", [["R1", "B"], ["D1", "A"]]),
-        connection("GND", [["V1", "NEG"], ["D1", "K"]]),
+        connection("GND", [["V1", "NEG"], ["V2", "REF"], ["D1", "K"]]),
       ],
     ),
   };

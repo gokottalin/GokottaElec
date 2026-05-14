@@ -8,7 +8,7 @@ namespace CircuitLangLauncher
     internal static class ConsoleProgram
     {
         private const string AppName = "GokottaElecCLI";
-        private const string AppVersion = "V1.5";
+        private const string AppVersion = "V1.6";
 
         private static int Main(string[] args)
         {

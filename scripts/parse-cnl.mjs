@@ -300,6 +300,7 @@ export const cnlToIr = (source) => {
   const deviceIds = new Map();
   const devicesByRefdes = new Map();
   const terminalToNet = new Map();
+  const connectionLines = [];
 
   const ir = {
     schema_version: SCHEMA_VERSION,
@@ -308,6 +309,11 @@ export const cnlToIr = (source) => {
     devices: [],
     connections: [],
     constraints: []
+  };
+
+  const pushConnection = (connection, line) => {
+    ir.connections.push(connection);
+    connectionLines.push(line);
   };
 
   for (const statement of ast) {
@@ -362,7 +368,7 @@ export const cnlToIr = (source) => {
     }
 
     if (statement.kind === "connection") {
-      ir.connections.push({ net: statement.net, terminals: statement.terminals });
+      pushConnection({ net: statement.net, terminals: statement.terminals }, statement.line);
       continue;
     }
 
@@ -370,7 +376,7 @@ export const cnlToIr = (source) => {
       const terminals = statement.pins
         .map((pin) => normalizePackagePin(pin, devicesByRefdes, statement.line, diagnostics))
         .filter(Boolean);
-      ir.connections.push({ net: statement.net, terminals });
+      pushConnection({ net: statement.net, terminals }, statement.line);
       continue;
     }
 
@@ -397,27 +403,28 @@ export const cnlToIr = (source) => {
     diagnostics.push(diagnostic(1, "MISSING_CIRCUIT", "Missing circuit declaration"));
   }
 
-  for (const connection of ir.connections) {
+  for (const [index, connection] of ir.connections.entries()) {
+    const connectionLine = connectionLines[index] ?? 1;
     if (!netIds.has(connection.net)) {
-      diagnostics.push(diagnostic(1, "UNKNOWN_NET", `Connection references unknown net: ${connection.net}`));
+      diagnostics.push(diagnostic(connectionLine, "UNKNOWN_NET", `Connection references unknown net: ${connection.net}`));
     }
 
     for (const terminal of connection.terminals) {
       const terminalMatch = terminal.match(/^([A-Z][A-Z0-9_]*[0-9]+)\.([A-Z][A-Z0-9_+\-]*)$/u);
       if (!terminalMatch) {
-        diagnostics.push(diagnostic(1, "TERMINAL", `Invalid terminal reference: ${terminal}`));
+        diagnostics.push(diagnostic(connectionLine, "TERMINAL", `Invalid terminal reference: ${terminal}`));
         continue;
       }
 
       const refdes = terminalMatch[1];
       if (!devicesByRefdes.has(refdes)) {
-        diagnostics.push(diagnostic(1, "TERMINAL_DEVICE", `Terminal references unknown device: ${terminal}`));
+        diagnostics.push(diagnostic(connectionLine, "TERMINAL_DEVICE", `Terminal references unknown device: ${terminal}`));
         continue;
       }
 
       const previousNet = terminalToNet.get(terminal);
       if (previousNet && previousNet !== connection.net) {
-        diagnostics.push(diagnostic(1, "TERMINAL_MULTI_NET", `${terminal} is connected to both ${previousNet} and ${connection.net}`));
+        diagnostics.push(diagnostic(connectionLine, "TERMINAL_MULTI_NET", `${terminal} is connected to both ${previousNet} and ${connection.net}`));
       }
       terminalToNet.set(terminal, connection.net);
     }

@@ -7,5 +7,10 @@
     <Nullable>enable</Nullable>
     <AssemblyName>GokottaElec</AssemblyName>
     <ApplicationIcon>GokottaElecApp.ico</ApplicationIcon>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <OutputPath>bin\$(Configuration)\GokottaElec\</OutputPath>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+  </ItemGroup>
 </Project>

@@ -31,6 +31,35 @@
         }
       }
     },
+    "2N3906": {
+      "component_type": "BJT_PNP",
+      "aliases": ["MMBT3906"],
+      "default_package": "TO-92_EBC",
+      "packages": {
+        "TO-92_EBC": {
+          "package_aliases": ["TO-92", "TO-92-3", "TO-226AA"],
+          "pin_numbering_view": "flat face toward viewer, leads pointing down",
+          "pin_map": {
+            "1": "E",
+            "2": "B",
+            "3": "C"
+          },
+          "source": "onsemi 2N3906 TO-92 package pinout is 1=Emitter, 2=Base, 3=Collector.",
+          "source_url": "https://www.onsemi.com/pdf/datasheet/2n3906-d.pdf"
+        },
+        "SOT-23_BEC": {
+          "package_aliases": ["SOT-23", "SOT23", "TO-236AB"],
+          "pin_numbering_view": "top view",
+          "pin_map": {
+            "1": "B",
+            "2": "E",
+            "3": "C"
+          },
+          "source": "Common MMBT3906 SOT-23 pinout matches the B, E, C assignment used by onsemi MMBT3906-family package data.",
+          "source_url": "https://www.onsemi.com/pdf/datasheet/2n3906-d.pdf"
+        }
+      }
+    },
     "S8050": {
       "component_type": "BJT_NPN",
       "aliases": ["SS8050"],
@@ -89,6 +118,25 @@
         }
       }
     },
+    "BSS84": {
+      "component_type": "MOS_PMOS_ENHANCEMENT",
+      "aliases": ["BSS84P"],
+      "default_package": "SOT-23_GSD",
+      "packages": {
+        "SOT-23_GSD": {
+          "package_aliases": ["SOT-23", "SOT23", "TO-236AB"],
+          "pin_numbering_view": "top view",
+          "pin_map": {
+            "1": "G",
+            "2": "S",
+            "3": "D"
+          },
+          "internal_ties": [["B", "S"]],
+          "source": "Nexperia BSS84 is a three-lead SOT-23 P-channel MOSFET with pinout 1=G, 2=S, 3=D.",
+          "source_url": "https://assets.nexperia.com/documents/data-sheet/BSS84.pdf"
+        }
+      }
+    },
     "IRLZ44N": {
       "component_type": "MOS_NMOS_ENHANCEMENT",
       "aliases": ["IRLZ44NPBF"],
@@ -108,6 +156,39 @@
           "internal_ties": [["B", "S"]],
           "source": "IRLZ44N TO-220AB pinout is 1=Gate, 2=Drain, 3=Source; metal tab is drain.",
           "source_url": "https://www.infineon.com/assets/row/public/documents/24/49/infineon-irlz44n-datasheet-en.pdf"
+        }
+      }
+    },
+    "OPA197": {
+      "component_type": "OPAMP_SINGLE",
+      "aliases": ["OPA197ID", "OPA197IDR", "OPA197IDBVR", "OPA197IDBVT"],
+      "default_package": "SOIC-8_SINGLE_OPAMP",
+      "packages": {
+        "SOIC-8_SINGLE_OPAMP": {
+          "package_aliases": ["SOIC-8", "SO-8", "SO8", "D"],
+          "pin_numbering_view": "top view, pin 1 marker at upper left",
+          "pin_map": {
+            "2": "IN-",
+            "3": "IN+",
+            "4": "V-",
+            "6": "OUT",
+            "7": "V+"
+          },
+          "source": "TI OPA197 D package uses SOIC-8 pins 2=IN-, 3=IN+, 4=V-, 6=OUT, 7=V+; pins 1, 5, and 8 are no-connect.",
+          "source_url": "https://www.ti.com/lit/ds/symlink/opa197.pdf"
+        },
+        "SOT-23-5_DBV": {
+          "package_aliases": ["SOT-23-5", "SOT23-5", "DBV"],
+          "pin_numbering_view": "top view",
+          "pin_map": {
+            "1": "OUT",
+            "2": "V-",
+            "3": "IN+",
+            "4": "IN-",
+            "5": "V+"
+          },
+          "source": "TI OPA197 DBV package uses SOT-23-5 pins 1=OUT, 2=V-, 3=IN+, 4=IN-, 5=V+.",
+          "source_url": "https://www.ti.com/lit/ds/symlink/opa197.pdf"
         }
       }
     },

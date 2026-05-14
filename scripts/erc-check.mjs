@@ -70,12 +70,14 @@ const buildIndexes = (ir, componentLibrary, add) => {
   const terminalToNet = new Map();
   const terminalUseSites = new Map();
   const netToTerminals = new Map();
+  const netConnectionUseCounts = new Map();
   const connectedTerminalsByRefdes = new Map();
 
   for (const net of ir.nets ?? []) {
     if (nets.has(net.id)) add("ERROR", "DUPLICATE_NET", `Duplicate net id ${net.id}`, net.id);
     nets.set(net.id, net);
     netToTerminals.set(net.id, []);
+    netConnectionUseCounts.set(net.id, 0);
   }
 
   for (const device of ir.devices ?? []) {
@@ -121,6 +123,7 @@ const buildIndexes = (ir, componentLibrary, add) => {
       add("ERROR", "UNKNOWN_NET", `Connection references unknown net ${connection.net}`, connection.net);
       netToTerminals.set(connection.net, netToTerminals.get(connection.net) ?? []);
     }
+    netConnectionUseCounts.set(connection.net, (netConnectionUseCounts.get(connection.net) ?? 0) + 1);
 
     for (const terminalRef of connection.terminals ?? []) {
       const parsed = parseTerminalRef(terminalRef);
@@ -161,7 +164,7 @@ const buildIndexes = (ir, componentLibrary, add) => {
     }
   }
 
-  return { nets, devices, terminalToNet, netToTerminals, connectedTerminalsByRefdes };
+  return { nets, devices, terminalToNet, netToTerminals, netConnectionUseCounts, connectedTerminalsByRefdes };
 };
 
 const sameNet = (indexes, refdes, a, b) => {
@@ -271,7 +274,10 @@ const checkNetRules = (indexes, add) => {
   for (const [netId, net] of indexes.nets.entries()) {
     const terminals = indexes.netToTerminals.get(netId) ?? [];
     const uniqueTerminals = new Set(terminals);
-    if (uniqueTerminals.size === 0) {
+    const connectionUseCount = indexes.netConnectionUseCounts.get(netId) ?? 0;
+    if (connectionUseCount === 0) {
+      add("WARNING", "UNUSED_NET", `Net ${netId} is declared but not used by any connection`, netId);
+    } else if (uniqueTerminals.size === 0) {
       add("WARNING", "UNUSED_NET", `Net ${netId} has no terminals`, netId);
     } else if (uniqueTerminals.size === 1 && net.type !== "input" && net.type !== "output") {
       add("WARNING", "SINGLE_TERMINAL_NET", `Net ${netId} has only one unique terminal`, netId);

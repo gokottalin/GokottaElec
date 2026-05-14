@@ -154,6 +154,7 @@ const buildIndexes = (ir, componentLibrary, add) => {
   const devices = new Map();
   const terminalToNet = new Map();
   const netToTerminals = new Map();
+  const netConnectionUseCounts = new Map();
   const connectedTerminalsByRefdes = new Map();
 
   if (ir.schema_version !== "0.1.0") {
@@ -165,6 +166,7 @@ const buildIndexes = (ir, componentLibrary, add) => {
     if (nets.has(net.id)) add("ERROR", "DUPLICATE_NET", `Duplicate net id: ${net.id}`, net.id);
     nets.set(net.id, net);
     netToTerminals.set(net.id, []);
+    netConnectionUseCounts.set(net.id, 0);
   }
 
   for (const device of ir.devices ?? []) {
@@ -215,6 +217,7 @@ const buildIndexes = (ir, componentLibrary, add) => {
   for (const connection of ir.connections ?? []) {
     if (!nets.has(connection.net)) add("ERROR", "UNKNOWN_NET", `Connection references unknown net: ${connection.net}`, connection.net);
     if (!netToTerminals.has(connection.net)) netToTerminals.set(connection.net, []);
+    netConnectionUseCounts.set(connection.net, (netConnectionUseCounts.get(connection.net) ?? 0) + 1);
 
     for (const terminalRef of connection.terminals ?? []) {
       const parsed = parseTerminalRef(terminalRef);
@@ -246,7 +249,7 @@ const buildIndexes = (ir, componentLibrary, add) => {
     }
   }
 
-  return { nets, devices, terminalToNet, netToTerminals, connectedTerminalsByRefdes };
+  return { nets, devices, terminalToNet, netToTerminals, netConnectionUseCounts, connectedTerminalsByRefdes };
 };
 
 const evaluateConstraints = (ir, indexes, add) => {
@@ -602,7 +605,10 @@ const evaluateNetRisks = (indexes, add) => {
 
   for (const [netId, net] of indexes.nets.entries()) {
     const terminals = indexes.netToTerminals.get(netId) ?? [];
-    if (terminals.length === 0) {
+    const connectionUseCount = indexes.netConnectionUseCounts.get(netId) ?? 0;
+    if (connectionUseCount === 0) {
+      add("WARNING", "UNUSED_NET", `Net ${netId} is declared but not used by any connection`, netId);
+    } else if (terminals.length === 0) {
       add("WARNING", "UNUSED_NET", `Net ${netId} has no connected terminals`, netId);
     }
     if (terminals.length === 1 && net.type !== "input" && net.type !== "output") {

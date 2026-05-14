@@ -95,9 +95,12 @@
 Initial covered models:
 
 - `2N3904`: TO-92 `1=E, 2=B, 3=C`; SOT-23/MMBT3904 `1=B, 2=E, 3=C`.
+- `2N3906`: TO-92 `1=E, 2=B, 3=C`; SOT-23/MMBT3906 `1=B, 2=E, 3=C`.
 - `S8050` / `SS8050`: default TO-92 `1=E, 2=B, 3=C`; alternate vendor TO-92 `1=C, 2=B, 3=E`; SOT-23/J3Y `1=B, 2=E, 3=C`.
 - `2N7002`: SOT-23 `1=G, 2=S, 3=D`, with `internal_ties=[["B","S"]]`.
+- `BSS84`: SOT-23 `1=G, 2=S, 3=D`, with `internal_ties=[["B","S"]]`.
 - `IRLZ44N`: TO-220AB `1=G, 2=D, 3=S`, tab/case maps to `D`, with `internal_ties=[["B","S"]]`.
+- `OPA197`: SOIC-8 single op-amp maps active pins `2=IN-, 3=IN+, 4=V-, 6=OUT, 7=V+`; SOT-23-5 maps `1=OUT, 2=V-, 3=IN+, 4=IN-, 5=V+`.
 - `LM358`: DIP-8/SOIC-8 dual op-amp package `1=A_OUT, 2=A_IN-, 3=A_IN+, 4=V-, 5=B_IN+, 6=B_IN-, 7=B_OUT, 8=V+`; unit maps are provided for `OPAMP_DUAL_UNIT` A/B modeling.
 
 Validation entry points:

@@ -29,6 +29,7 @@
   ];
 
   const el = {
+    shell: document.querySelector("#appShell"),
     sampleSelect: document.querySelector("#sampleSelect"),
     sampleTitle: document.querySelector("#sampleTitle"),
     cnlInput: document.querySelector("#cnlInput"),
@@ -54,16 +55,31 @@
   let currentIr = null;
   let currentBuildResult = null;
 
-  function setLog(value, isError) {
-    el.diagnosticsLog.textContent = value || "";
-    el.diagnosticsLog.classList.toggle("ge-error", Boolean(isError));
+  const logClasses = ["ge-log-info", "ge-log-loading", "ge-log-success", "ge-log-warning", "ge-log-error"];
+
+  function setShellState(state) {
+    el.shell.dataset.state = state;
   }
 
-  function setPreviewEmpty(message) {
+  function setLog(value, level = "info") {
+    const safeLevel = ["loading", "success", "warning", "error"].includes(level) ? level : "info";
+    el.diagnosticsLog.textContent = value || "";
+    el.diagnosticsLog.classList.remove(...logClasses);
+    el.diagnosticsLog.classList.add(`ge-log-${safeLevel}`);
+  }
+
+  function setPreviewState(state, isEmpty) {
+    const safeState = ["idle", "loading", "success", "warning", "error", "backend"].includes(state) ? state : "idle";
+    el.svgPreview.className = `${isEmpty ? "ge-preview-empty " : ""}ge-preview-${safeState}`.trim();
+    setShellState(safeState);
+  }
+
+  function setPreviewEmpty(message, state = "idle") {
     currentSvg = "";
     currentSvgFilename = "gokottaelec.svg";
+    currentBuildResult = null;
     el.downloadSvgButton.disabled = true;
-    el.svgPreview.className = "ge-preview-empty";
+    setPreviewState(state, true);
     el.svgPreview.textContent = message;
     setCircuitChoices([]);
   }
@@ -77,15 +93,17 @@
   function normalizeBuildResponse(data) {
     const rawCircuits = Array.isArray(data.circuits) ? data.circuits : [];
     const artifacts = data.artifacts || {};
-    const circuits = rawCircuits.length ? rawCircuits.map((circuit, index) => normalizeCircuit(circuit, data, index)) : [];
+    const circuits = rawCircuits.length
+      ? rawCircuits.map((circuit, index) => normalizeCircuit(circuit, data, index, rawCircuits.length))
+      : [];
     if (!circuits.length && (artifacts.svg || artifacts.ir || artifacts.ercText)) {
       circuits.push(normalizeCircuit({
-        id: artifacts.ir?.circuit?.id || "CIRCUIT_1",
+        id: circuitIdFromIr(artifacts.ir) || "CIRCUIT_1",
         ok: Boolean(data.ok),
         svg: artifacts.svg || "",
         ir: artifacts.ir || null,
         erc: artifacts.ercText || ""
-      }, data, 0));
+      }, data, 0, 1));
     }
     return {
       ok: Boolean(data.ok),
@@ -95,18 +113,29 @@
     };
   }
 
-  function normalizeCircuit(circuit, data, index) {
-    const id = circuit?.id || circuit?.ir?.circuit?.id || `CIRCUIT_${index + 1}`;
+  function circuitIdFromIr(ir) {
+    return ir?.circuit_id || ir?.circuit?.id || ir?.circuit?.circuit_id || "";
+  }
+
+  function diagnosticBelongsToCircuit(diagnostic, circuitId, circuitCount) {
+    if (!diagnostic?.target) return true;
+    if (diagnostic.target === circuitId) return true;
+    return circuitCount === 1;
+  }
+
+  function normalizeCircuit(circuit, data, index, circuitCount) {
+    const id = circuit?.id || circuitIdFromIr(circuit?.ir) || `CIRCUIT_${index + 1}`;
     const topDiagnostics = Array.isArray(data.diagnostics) ? data.diagnostics : [];
+    const diagnostics = Array.isArray(circuit?.diagnostics) ? circuit.diagnostics : [];
     const warnings = Array.isArray(circuit?.warnings) ? circuit.warnings : [];
-    const circuitDiagnostics = topDiagnostics.filter((item) => !item.target || item.target === id);
+    const circuitDiagnostics = topDiagnostics.filter((item) => diagnosticBelongsToCircuit(item, id, circuitCount));
     return {
       id,
       ok: circuit?.ok !== false,
       svg: circuit?.svg || "",
       ir: circuit?.ir || null,
       ercText: circuit?.erc || "",
-      diagnostics: [...warnings, ...circuitDiagnostics]
+      diagnostics: [...diagnostics, ...warnings, ...circuitDiagnostics]
     };
   }
 
@@ -122,6 +151,14 @@
     }
     if (!parts.length) parts.push("OK");
     return parts.join("\n\n");
+  }
+
+  function circuitSeverity(circuit) {
+    const levels = (circuit.diagnostics || []).map((item) => String(item.level || "").toUpperCase());
+    const ercText = String(circuit.ercText || "").toUpperCase();
+    if (circuit.ok === false || levels.includes("ERROR") || ercText.includes("ERROR")) return "error";
+    if (levels.includes("WARNING") || ercText.includes("WARNING")) return "warning";
+    return "success";
   }
 
   function circuitLabel(circuit, index, total) {
@@ -143,20 +180,21 @@
     const circuits = currentBuildResult?.circuits || [];
     const circuit = circuits[index];
     if (!circuit) {
-      setPreviewEmpty("后端没有返回可显示的电路。");
+      setPreviewEmpty("后端没有返回可显示的电路。", "backend");
       setIr(null);
       return;
     }
 
     currentSvg = circuit.svg || "";
     currentSvgFilename = `${circuit.id || "gokottaelec"}.svg`;
+    const severity = circuitSeverity(circuit);
     el.circuitSelect.value = String(index);
     el.circuitSummary.textContent = `${index + 1} / ${circuits.length}`;
-    el.svgPreview.className = currentSvg ? "" : "ge-preview-empty";
+    setPreviewState(currentSvg ? severity : "backend", !currentSvg);
     el.svgPreview.innerHTML = currentSvg || "后端没有返回 SVG。";
     el.downloadSvgButton.disabled = !currentSvg;
     setIr(circuit.ir);
-    setLog(diagnosticsToText(circuit), circuit.diagnostics?.some((item) => item.level === "ERROR"));
+    setLog(diagnosticsToText(circuit), severity);
   }
 
   async function loadSamples() {
@@ -167,7 +205,7 @@
       samples = Array.isArray(data.samples) && data.samples.length ? data.samples : fallbackSamples;
     } catch {
       samples = fallbackSamples;
-      setLog("Sample API 未接入，已加载内置最小示例。");
+      setLog("Sample API 未接入，已加载内置最小示例。", "warning");
     }
 
     el.sampleSelect.innerHTML = `<option value="">加载 Sample</option>` + samples.map((sample) => (
@@ -179,15 +217,15 @@
   async function buildCircuit() {
     const source = el.cnlInput.value.trim();
     if (!source) {
-      setPreviewEmpty("请先输入 CNL 文本");
-      setLog("没有输入内容。", true);
+      setPreviewEmpty("请先输入 CNL 文本", "warning");
+      setLog("没有输入内容。", "warning");
       setIr(null);
       return;
     }
 
     el.renderButton.disabled = true;
-    setLog("正在调用 /api/elec/build ...");
-    setPreviewEmpty("正在生成 SVG 原理图...");
+    setLog("正在调用 /api/elec/build ...", "loading");
+    setPreviewEmpty("正在生成 SVG 原理图...", "loading");
     setIr(null);
 
     try {
@@ -212,11 +250,30 @@
       setCircuitChoices(result.circuits);
       displayCircuit(0);
     } catch (error) {
-      setPreviewEmpty("接口未接入或生成失败");
+      const errorText = formatError(error);
+      const state = errorText.includes("接口未接入") ? "backend" : "error";
+      setPreviewEmpty("接口未接入或生成失败", state);
       setIr(null);
-      setLog(formatError(error), true);
+      setLog(errorText, "error");
     } finally {
       el.renderButton.disabled = false;
+    }
+  }
+
+  async function copyText(text, successMessage, emptyMessage) {
+    if (!text) {
+      setLog(emptyMessage || "没有可复制内容。", "warning");
+      return false;
+    }
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("当前浏览器不支持剪贴板写入");
+      await navigator.clipboard.writeText(text);
+      setLog(successMessage, "success");
+      return true;
+    } catch (error) {
+      const message = error?.message || "未知错误";
+      setLog(`复制失败：${message}`, "error");
+      return false;
     }
   }
 
@@ -236,10 +293,9 @@
         : { ok: response.ok, markdown: await response.text() };
 
       if (!response.ok || data.ok === false || !data.markdown) throw data;
-      await navigator.clipboard.writeText(data.markdown);
-      setLog(`已复制：${label}`);
+      await copyText(data.markdown, `已复制：${label}`, "LLM 对接内容为空。");
     } catch (error) {
-      setLog(formatHandoffError(error, mode), true);
+      setLog(formatHandoffError(error, mode), "error");
     } finally {
       button.disabled = false;
     }
@@ -292,15 +348,21 @@
   el.copyFullHandoffButton.addEventListener("click", () => copyLlmHandoff("full"));
   el.clearButton.addEventListener("click", () => {
     el.cnlInput.value = "";
-    setPreviewEmpty("等待生成预览");
+    setPreviewEmpty("等待生成预览", "idle");
     setLog("已清空。");
     setIr(null);
   });
-  el.copyButton.addEventListener("click", () => navigator.clipboard?.writeText(el.cnlInput.value));
-  el.copyIrButton.addEventListener("click", () => navigator.clipboard?.writeText(el.irViewer.textContent));
+  el.copyButton.addEventListener("click", () => copyText(el.cnlInput.value, "已复制输入 CNL。", "没有可复制的 CNL 输入。"));
+  el.copyIrButton.addEventListener("click", () => copyText(el.irViewer.textContent, "已复制 IR JSON。", "没有可复制的 IR JSON。"));
   el.fitButton.addEventListener("click", () => el.svgPreview.scrollTo({ left: 0, top: 0, behavior: "smooth" }));
   el.downloadSvgButton.addEventListener("click", () => {
-    if (currentSvg) downloadText(currentSvgFilename, currentSvg, "image/svg+xml;charset=utf-8");
+    try {
+      if (!currentSvg) throw new Error("没有可下载的 SVG。");
+      downloadText(currentSvgFilename, currentSvg, "image/svg+xml;charset=utf-8");
+      setLog(`已下载 SVG：${currentSvgFilename}`, "success");
+    } catch (error) {
+      setLog(error?.message || "下载 SVG 失败。", "error");
+    }
   });
 
   loadSamples();

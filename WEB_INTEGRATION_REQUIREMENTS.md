@@ -1,8 +1,8 @@
-# GokottaElec 网页版对接需求
+﻿# GokottaElec 网页版对接需求
 
 本文档定义 `GokottaMaker` 网站接入 `GokottaElec` 的最小接口契约。更面向网页团队的总览交付文档见 `WEB_TEAM_HANDOFF.md`。
 
-当前 GokottaElec 版本：`V1.5`
+当前 GokottaElec 版本：`V1.6`
 
 目标 GitHub 仓库：
 
@@ -71,7 +71,7 @@ web-miniapp/assets/gokotta-elec-icon.png
 ```json
 {
   "ok": true,
-  "version": "V1.5",
+  "version": "V1.6",
   "samples": [
     {
       "id": "sample-01-voltage-divider",
@@ -87,7 +87,7 @@ web-miniapp/assets/gokotta-elec-icon.png
 ```json
 {
   "ok": false,
-  "version": "V1.5",
+  "version": "V1.6",
   "samples": [],
   "diagnostics": [
     {
@@ -122,7 +122,7 @@ web-miniapp/assets/gokotta-elec-icon.png
 ```json
 {
   "ok": true,
-  "version": "V1.5",
+  "version": "V1.6",
   "circuits": [
     {
       "id": "WEB_SAMPLE_01",
@@ -147,7 +147,7 @@ web-miniapp/assets/gokotta-elec-icon.png
 ```json
 {
   "ok": false,
-  "version": "V1.5",
+  "version": "V1.6",
   "circuits": [],
   "artifacts": {},
   "diagnostics": [
@@ -166,6 +166,7 @@ web-miniapp/assets/gokotta-elec-icon.png
 
 - `diagnostics` 必须始终是数组。
 - `level` 使用 `INFO`、`WARNING` 或 `ERROR`。
+- `target` 可以是 circuit id、net id、device refdes 或 terminal ref，例如 `N_UNUSED`。单电路响应中前端会展示全部顶层 diagnostics；多电路响应中建议把诊断放入对应 `circuits[].diagnostics` 或 `circuits[].warnings`，或把顶层 `diagnostics[].target` 设为对应 circuit id。
 - `ok: true` 可以包含 `WARNING`。
 - `ERROR` 应使顶层 `ok` 为 `false`。
 - 前端必须保留完整 `circuits[]`，不能只展示 `circuits[0]` 后丢弃其他电路。
@@ -177,7 +178,7 @@ web-miniapp/assets/gokotta-elec-icon.png
 
 ### GET /api/elec/llm-handoff
 
-用于同步桌面端 V1.5 的 `复制基础LLM` 与 `复制完整LLM` 功能，返回可直接粘贴给其他 LLM 的 Markdown 对接包。
+用于同步桌面端 V1.6 的 `复制基础LLM` 与 `复制完整LLM` 功能，返回可直接粘贴给其他 LLM 的 Markdown 对接包。
 
 查询参数：
 
@@ -190,7 +191,7 @@ mode=basic | full
 ```json
 {
   "ok": true,
-  "version": "V1.5",
+  "version": "V1.6",
   "mode": "basic",
   "markdown": "# GokottaElec LLM 基础对接包\n..."
 }
@@ -203,7 +204,7 @@ mode=basic | full
 ```json
 {
   "ok": false,
-  "version": "V1.5",
+  "version": "V1.6",
   "diagnostics": [
     {
       "level": "ERROR",
